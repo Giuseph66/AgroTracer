@@ -1,0 +1,23 @@
+# Ambiente local do desenvolvedor (Doc 14 §3.1).
+# Sobe com: docker compose -f compose.dev.yml up -d
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: traceagro-postgres
+    environment:
+      POSTGRES_USER: traceagro
+      POSTGRES_PASSWORD: traceagro_dev
+      POSTGRES_DB: traceagro
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./api/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U traceagro -d traceagro']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata:
