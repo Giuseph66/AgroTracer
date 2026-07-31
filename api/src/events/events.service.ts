@@ -338,7 +338,7 @@ export class EventsService {
           client,
           e,
           str(e.payload['productRef']) ?? null,
-          valueAsText(e.payload['dosage']),
+          valueAsText(e.payload['dosage']) ?? null,
           str(e.payload['withdrawalUntil']) ?? null,
           // Agrupador de aplicação em lote (Doc 5 §4.4): liga os eventos
           // gerados numa mesma passagem de manejo.
