@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------- segredos
+# Nada de credencial real no repositório (Doc 13 §4.2). As senhas que existem
+# em compose.dev.yml e no seed SQL são de laboratório local e não valem em
+# nenhum outro ambiente — produção usa Vault/KMS.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+key.properties
+secrets/
+credentials.json
+service-account*.json
+
+# Material criptográfico da rede Fabric (Doc 10 §4) — MSP, CAs e identidades
+# nunca entram em controle de versão.
+crypto-config/
+organizations/
+wallet/
+*.block
+*.tx
+
+# ------------------------------------------------------------------- Node
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --------------------------------------------------------- Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+app/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+app/ios/Pods/
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/flutter_export_environment.sh
+*.iml
+
+# ------------------------------------------------- ferramentas de agente
+# Configuração local de assistentes: é ambiente de cada pessoa, não do projeto.
+# AGENTS.md é a exceção deliberada — é a especificação que o time segue.
+.claude/
+.cursor/
+.aider*
+.continue/
+.windsurf/
+.github-copilot/
+.playwright-mcp/
+
+# ------------------------------------------------------------------- IDE
+.idea/
+.vscode/
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# -------------------------------------------------------------------- SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------ temporários
+*.log
+tmp/
+temp/
+*.pid
+*.seed
+
+# Material de referência da ferramenta de design usada no estudo inicial.
+# A identidade visual vigente está definida em AGENTS.md §2 e implementada em
+# app/lib/core/theme/ — manter o export antigo no repositório só criaria dúvida
+# sobre qual design seguir.
+exemplo de tela/
+
+# Capturas soltas na raiz (as capturas de revisão ficam em design-review/).
+/*.png
