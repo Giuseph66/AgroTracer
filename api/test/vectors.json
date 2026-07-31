@@ -1,0 +1,76 @@
+{
+  "_comment": "Vetores compartilhados de canonicalização (RFC 8785 simplificado). Consumidos por api/test/canonical.test.ts e app/test/canonical_test.dart. Se um lado divergir, todo evento vindo do app é rejeitado com ERR-EVT-HASH — por isso os dois leem exatamente este arquivo. Gerado por api/test/generate-vectors.js.",
+  "vectors": [
+    {
+      "name": "objeto simples com chaves fora de ordem",
+      "value": {
+        "b": 2,
+        "a": 1
+      },
+      "canonical": "{\"a\":1,\"b\":2}",
+      "sha256": "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    },
+    {
+      "name": "payload de pesagem",
+      "value": {
+        "weightKg": 301.5,
+        "weightSource": "SCALE",
+        "scaleId": "AT-2"
+      },
+      "canonical": "{\"scaleId\":\"AT-2\",\"weightKg\":301.5,\"weightSource\":\"SCALE\"}",
+      "sha256": "24d31140332a105308b38d9dfe4e927fcd6e53e3f7c7c71a415dc01a74a84aea"
+    },
+    {
+      "name": "inteiro em ponto flutuante sai sem casa decimal",
+      "value": {
+        "weightKg": 300
+      },
+      "canonical": "{\"weightKg\":300}",
+      "sha256": "e45867b6c101e37e39dcda5f2fedb780c57e16657b0f9f1ddc2c079e64958b02"
+    },
+    {
+      "name": "aninhamento com lista",
+      "value": {
+        "animals": [
+          "4127",
+          "4088"
+        ],
+        "lot": {
+          "name": "Recria 12",
+          "id": 3
+        }
+      },
+      "canonical": "{\"animals\":[\"4127\",\"4088\"],\"lot\":{\"id\":3,\"name\":\"Recria 12\"}}",
+      "sha256": "82ab3a2c4b3e4e26c9d83cd80a022d44a66416170c55b092a0ac0e3dd30b3094"
+    },
+    {
+      "name": "null explícito é conteúdo",
+      "value": {
+        "correctionOf": null,
+        "reason": "erro de digitação"
+      },
+      "canonical": "{\"correctionOf\":null,\"reason\":\"erro de digitação\"}",
+      "sha256": "416aa5ea569b0e279cbbb45f4f20dec1dab727f2f51333030f1ab30567f3c665"
+    },
+    {
+      "name": "acentos em UTF-8",
+      "value": {
+        "note": "vacinação aplicada às 14h"
+      },
+      "canonical": "{\"note\":\"vacinação aplicada às 14h\"}",
+      "sha256": "706346e8fb0569bc79b20419384cd5440d1d3148e04db648a76504029a1db697"
+    },
+    {
+      "name": "payload de vacinação completo",
+      "value": {
+        "productRef": "AFTOSA-BIV",
+        "dosage": "5ml",
+        "route": "SC",
+        "batchNumber": "L2291",
+        "withdrawalUntil": "2026-08-21T00:00:00.000Z"
+      },
+      "canonical": "{\"batchNumber\":\"L2291\",\"dosage\":\"5ml\",\"productRef\":\"AFTOSA-BIV\",\"route\":\"SC\",\"withdrawalUntil\":\"2026-08-21T00:00:00.000Z\"}",
+      "sha256": "dd18c5046f8b47ff43c1c9655765f100483e8642e04547ee22fcc6ed239410e1"
+    }
+  ]
+}
