@@ -1,0 +1,260 @@
+import 'package:flutter/material.dart';
+
+import '../../core/services.dart';
+import '../../core/sync/sync_service.dart';
+import '../../core/theme/tokens.dart';
+import '../../core/widgets/common.dart';
+import '../../domain/models.dart';
+import '../animal/animal_screen.dart';
+import '../read/read_screen.dart';
+import '../weighing/weighing_screen.dart';
+
+/// Início. Contexto da propriedade, o que está pendente e as ações de campo —
+/// nessa ordem, porque é a ordem em que o operador decide o que fazer.
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final services = Services.of(context);
+
+    return StreamBuilder<void>(
+      stream: services.outbox.changes,
+      builder: (context, _) => ListenableBuilder(
+        listenable: services.herd,
+        builder: (context, _) => CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _Header(services: services)),
+            SliverPadding(
+              padding: const EdgeInsets.all(TaSpace.md),
+              sliver: SliverList.list(children: [
+                if (services.outbox.pendingCount +
+                        services.outbox.conflictCount >
+                    0) ...[
+                  _SyncSummaryCard(services: services),
+                  const SizedBox(height: TaSpace.md),
+                ],
+                const SectionLabel('Trabalho de campo'),
+                const SizedBox(height: TaSpace.sm),
+                const _ActionGrid(),
+                const SizedBox(height: TaSpace.lg),
+                const SectionLabel('Hoje na Santa Rita'),
+                const SizedBox(height: TaSpace.sm),
+                _TodayCard(services: services),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.services});
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Container(
+      color: TaColors.pasture,
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(context).top + TaSpace.md,
+        left: TaSpace.md,
+        right: TaSpace.md,
+        bottom: TaSpace.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const SectionLabel('TraceAgro', onDark: true),
+              ListenableBuilder(
+                listenable: services.sync,
+                builder: (context, _) => ConnectivityPill(
+                  online:
+                      services.sync.connectivity == ConnectivityState.online,
+                  pending: services.outbox.pendingCount,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: TaSpace.md),
+          Text('Bom dia, João',
+              style: t.displayMedium!.copyWith(color: TaColors.paperInk)),
+          const SizedBox(height: 4),
+          Text(
+            'Fazenda Santa Rita · ${services.herd.animals.length} animais no aparelho',
+            style: t.bodyMedium!.copyWith(color: TaColors.paperInkSoft),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncSummaryCard extends StatelessWidget {
+  const _SyncSummaryCard({required this.services});
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final pending = services.outbox.pendingCount;
+    final conflicts = services.outbox.conflictCount;
+    final hasConflict = conflicts > 0;
+
+    return TaCard(
+      onTap: services.sync.sync,
+      child: Row(
+        children: [
+          Icon(hasConflict ? Icons.priority_high : Icons.cloud_upload_outlined,
+              size: 28, color: hasConflict ? TaColors.clay : TaColors.inkSoft),
+          const SizedBox(width: TaSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pending == 0
+                      ? 'Fila vazia'
+                      : '$pending ${pending == 1 ? "evento aguardando" : "eventos aguardando"} envio',
+                  style: t.titleMedium,
+                ),
+                if (hasConflict)
+                  Text(
+                    '$conflicts ${conflicts == 1 ? "conflito" : "conflitos"} para resolver',
+                    style: t.bodySmall!.copyWith(
+                        color: TaColors.clay, fontWeight: FontWeight.w700),
+                  ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: TaColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget action(IconData icon, String label, {VoidCallback? onTap}) {
+      final t = Theme.of(context).textTheme;
+      final enabled = onTap != null;
+      return Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: const BorderRadius.all(TaRadius.rLg),
+          child: Container(
+            height: 96,
+            decoration: BoxDecoration(
+              color: enabled ? TaColors.tagYellow : TaColors.paper,
+              borderRadius: const BorderRadius.all(TaRadius.rLg),
+              border: Border.all(
+                  color: enabled ? TaColors.tagYellowDeep : TaColors.line),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 30,
+                    color: enabled ? TaColors.stamp : TaColors.inkSoft),
+                const SizedBox(height: 6),
+                Text(label,
+                    style: t.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: enabled ? TaColors.stamp : TaColors.inkSoft)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    void go(Widget screen) => Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => screen));
+
+    return Column(children: [
+      Row(children: [
+        action(Icons.sensors, 'Ler animal',
+            onTap: () => go(const ReadScreen())),
+        const SizedBox(width: TaSpace.sm),
+        action(Icons.monitor_weight_outlined, 'Pesagem',
+            onTap: () => go(const WeighingScreen())),
+      ]),
+      const SizedBox(height: TaSpace.sm),
+      Row(children: [
+        action(Icons.vaccines_outlined, 'Vacinação'),
+        const SizedBox(width: TaSpace.sm),
+        action(Icons.local_shipping_outlined, 'Embarque'),
+      ]),
+    ]);
+  }
+}
+
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.services});
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final animals = services.herd.animals;
+    final weighedToday = services.outbox.entries
+        .where((e) => e.kind == EventKind.weighing)
+        .length;
+    final inWithdrawal = animals
+        .where((a) => a.status == LifecycleStatus.quarantined)
+        .toList();
+
+    Widget row(String value, String label, {VoidCallback? onTap}) => InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 64,
+                  child: Text(value,
+                      style:
+                          t.headlineMedium!.copyWith(color: TaColors.pasture)),
+                ),
+                const SizedBox(width: TaSpace.sm),
+                Expanded(child: Text(label, style: t.bodyMedium)),
+                if (onTap != null)
+                  const Icon(Icons.chevron_right,
+                      size: 20, color: TaColors.inkSoft),
+              ],
+            ),
+          ),
+        );
+
+    return TaCard(
+      padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
+      child: Column(children: [
+        row('${animals.length}', 'animais no rebanho desta propriedade'),
+        const Divider(),
+        row('$weighedToday',
+            weighedToday == 1 ? 'pesagem registrada hoje' : 'pesagens registradas hoje'),
+        const Divider(),
+        row(
+          '${inWithdrawal.length}',
+          inWithdrawal.isEmpty
+              ? 'animais em carência'
+              : 'em carência — brinco ${inWithdrawal.first.visualTagNumber}',
+          onTap: inWithdrawal.isEmpty
+              ? null
+              : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AnimalScreen(animal: inWithdrawal.first))),
+        ),
+      ]),
+    );
+  }
+}
