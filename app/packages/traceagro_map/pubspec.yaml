@@ -1,0 +1,26 @@
+name: traceagro_map
+description: >-
+  Componentes de mapa do TraceAgro: visualização da propriedade, desenho e
+  medição de piquetes, seleção de áreas e camada de situação sanitária.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Mapa: flutter_map com tiles OSM. Escolhido sobre google_maps_flutter por
+  # dispensar chave paga e permitir cache de tiles para uso offline — requisito
+  # de operação em propriedade rural (Doc 19, questão Q1).
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

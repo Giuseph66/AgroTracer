@@ -91,3 +91,7 @@ exemplo de tela/
 
 # Capturas soltas na raiz (as capturas de revisão ficam em design-review/).
 /*.png
+
+# Vitrine do pacote de mapa: build e lock do exemplo não versionam.
+app/packages/*/example/build/
+app/packages/*/build/
