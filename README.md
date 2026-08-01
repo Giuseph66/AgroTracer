@@ -28,16 +28,41 @@ Pré-requisitos: Docker, Node 22+, Flutter 3.44+.
 # 1. Banco (Postgres + PostGIS, com schema e dados de laboratório)
 docker compose -f compose.dev.yml up -d
 
-# 2. API em http://localhost:3999
-cd api && npm install && npm run build && PORT=3999 npm start
+# 2. API em http://localhost:4009
+cd api
+cp .env.example .env        # uma vez; o .env não vai para o repositório
+npm install
+npm run dev                 # ou: npm run build && npm start
 
-# 3. App
-cd app && flutter run                    # Android/desktop
-flutter run -d chrome --web-port 8347    # navegador
+# 3. App em http://localhost:8347
+cd app
+flutter run                                  # Android/desktop
+flutter run -d chrome --web-port 8347        # navegador
 ```
 
-O app aponta para `http://localhost:3999` por padrão. Para outro endereço:
-`flutter run --dart-define=TRACEAGRO_API=http://192.168.0.10:3999`.
+### Portas
+
+| O quê | Porta | Onde está definida |
+|-------|-------|--------------------|
+| API | 4009 | default em `api/src/main.ts`, sobrescrito por `PORT` no `.env` |
+| App (web de teste) | 8347 | `--web-port` |
+| Postgres | 5433 | `compose.dev.yml` |
+
+**O endereço da API é gravado no app em tempo de compilação.** `String.fromEnvironment`
+resolve no build, então nenhum arquivo de ambiente lido depois muda para onde o
+app aponta — trocar de servidor exige recompilar. Os dois lados usam 4009 como
+default justamente para o caso comum não precisar de nenhuma flag.
+
+Para apontar para outro servidor (aparelho físico na rede da fazenda):
+
+```bash
+flutter run --dart-define-from-file=../config/dev.json   # edite o arquivo
+flutter run --dart-define=TRACEAGRO_API=http://192.168.0.10:4009
+```
+
+Se o app mostrar `ERR_CONNECTION_REFUSED` em `/v1/auth/config`, é desencontro de
+porta: confira em qual porta a API subiu e qual endereço ficou gravado no build
+(`grep -o 'http://[^"]*' app/build/web/main.dart.js | sort -u`).
 
 ## Testes
 
