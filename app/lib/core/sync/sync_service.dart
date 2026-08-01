@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../../domain/models.dart';
-import 'event_envelope.dart';
 import 'outbox.dart';
 
 const _uuid = Uuid();
@@ -32,12 +31,19 @@ enum ConnectivityState { offline, online, syncing }
 /// A decisão vinculante é sempre do servidor: o app antecipa validações para a
 /// UX, mas quem aceita, rejeita ou marca conflito é a API.
 class SyncService extends ChangeNotifier {
-  SyncService({required this.outbox, required this.baseUrl, this.tokenProvider, http.Client? client})
+  SyncService({
+    required this.outbox,
+    required this.baseUrl,
+    this.tokenProvider,
+    this.onUnauthorized,
+    http.Client? client,
+  })
       : _client = client ?? http.Client();
 
   final Outbox outbox;
   final String baseUrl;
   final String? Function()? tokenProvider;
+  final VoidCallback? onUnauthorized;
   final http.Client _client;
 
   ConnectivityState _connectivity = ConnectivityState.offline;
@@ -58,6 +64,7 @@ class SyncService extends ChangeNotifier {
   int get clockSkewMs => _clockSkewMs;
 
   void start() {
+    _retryTimer?.cancel();
     unawaited(_bootstrap());
     _retryTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (outbox.pending.isNotEmpty) {
@@ -69,6 +76,13 @@ class SyncService extends ChangeNotifier {
       // evento ficaria eternamente exibido como "enviando" na tela.
       unawaited(refreshAnchors(_awaitingProof));
     });
+  }
+
+  void stop() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _connectivity = ConnectivityState.offline;
+    notifyListeners();
   }
 
   /// Antes de enviar qualquer coisa, alinha a numeração com o servidor.
@@ -88,6 +102,7 @@ class SyncService extends ChangeNotifier {
             headers: _headers,
           )
           .timeout(const Duration(seconds: 8));
+      if (_expireSessionFor(res)) return;
       if (res.statusCode != 200) return;
       final state = jsonDecode(res.body) as Map<String, Object?>;
       final last = state['lastSequence'];
@@ -111,6 +126,7 @@ class SyncService extends ChangeNotifier {
       final res = await _client
           .get(Uri.parse('$baseUrl/v1/anchors'), headers: _headers)
           .timeout(const Duration(seconds: 5));
+      if (_expireSessionFor(res)) return;
       if (res.statusCode == 200) {
         _readClockSkew(res.headers);
         _connectivity = ConnectivityState.online;
@@ -146,7 +162,7 @@ class SyncService extends ChangeNotifier {
     try {
       final body = jsonEncode({
         'batchId': _uuid.v7(),
-        'deviceId': DevIdentity.deviceId,
+        'deviceId': outbox.identity.deviceId,
         'clockSkewMs': _clockSkewMs,
         'events': batch.map((e) => e.envelope.toJson()).toList(),
       });
@@ -159,6 +175,9 @@ class SyncService extends ChangeNotifier {
           )
           .timeout(const Duration(seconds: 20));
 
+      if (_expireSessionFor(res)) {
+        throw http.ClientException('sessão expirada');
+      }
       if (res.statusCode != 200 && res.statusCode != 201) {
         throw http.ClientException('HTTP ${res.statusCode}: ${res.body}');
       }
@@ -211,6 +230,7 @@ class SyncService extends ChangeNotifier {
               headers: _headers,
             )
             .timeout(const Duration(seconds: 10));
+        if (_expireSessionFor(res)) return;
         if (res.statusCode != 200) continue;
         final anchor = jsonDecode(res.body) as Map<String, Object?>;
         if (anchor['status'] == 'CONFIRMED' && anchor['txId'] != null) {
@@ -236,6 +256,12 @@ class SyncService extends ChangeNotifier {
     return token == null || token.isEmpty
         ? const {}
         : {'authorization': 'Bearer $token'};
+  }
+
+  bool _expireSessionFor(http.Response response) {
+    if (response.statusCode != 401) return false;
+    onUnauthorized?.call();
+    return true;
   }
 
   Duration get nextRetryDelay =>

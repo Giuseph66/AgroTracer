@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
-import '../auth/login_screen.dart';
+import '../admin/admin_screen.dart';
 
 /// Ajustes: quem está operando, se a fila está subindo, e o essencial deste
 /// aparelho — sem repetir o que já aparece em outras telas.
@@ -35,62 +36,63 @@ class SettingsScreen extends StatelessWidget {
 
               // Quem está operando + trocar de conta, sempre visível e no
               // topo: é a pergunta mais comum num aparelho compartilhado.
-              // Sem sessão ativa, o cartão vira o próprio convite para entrar
-              // — sem isso não haveria nenhum caminho até o login quando o
-              // servidor roda em modo opcional.
-              if (auth.token != null)
+              TaCard(
+                child: Row(
+                  children: [
+                    _Avatar(name: identity.actorName),
+                    const SizedBox(width: TaSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(identity.actorName, style: t.titleMedium),
+                          Text(
+                            identity.propertyName,
+                            style: t.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => _confirmLogout(context, services),
+                      icon: const Icon(Icons.swap_horiz),
+                      tooltip: 'Trocar de conta',
+                      color: TaColors.clay,
+                    ),
+                  ],
+                ),
+              ),
+
+              if (kIsWeb && auth.can('users.manage')) ...[
+                const SizedBox(height: TaSpace.md),
                 TaCard(
-                  child: Row(
-                    children: [
-                      _Avatar(name: identity.actorName),
-                      const SizedBox(width: TaSpace.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(identity.actorName, style: t.titleMedium),
-                            Text(
-                              identity.propertyName,
-                              style: t.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _confirmLogout(context, services),
-                        icon: const Icon(Icons.swap_horiz),
-                        tooltip: 'Trocar de conta',
-                        color: TaColors.clay,
-                      ),
-                    ],
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AdminScreen()),
                   ),
-                )
-              else
-                TaCard(
-                  onTap: () => _openLogin(context),
                   child: Row(
                     children: [
                       Container(
                         width: 44,
                         height: 44,
                         decoration: const BoxDecoration(
-                          color: TaColors.paperDim,
-                          shape: BoxShape.circle,
+                          color: TaColors.pasture,
+                          borderRadius: BorderRadius.all(TaRadius.rSm),
                         ),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.person_outline,
-                            color: TaColors.inkSoft),
+                        child: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                          color: TaColors.tagYellow,
+                        ),
                       ),
                       const SizedBox(width: TaSpace.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Sem sessão ativa', style: t.titleMedium),
+                            Text('Central de acesso', style: t.titleMedium),
                             Text(
-                              'Toque para entrar com sua identidade de operador.',
+                              'Pessoas, perfis e bloqueios da organização.',
                               style: t.bodySmall,
                             ),
                           ],
@@ -100,6 +102,7 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+              ],
 
               const SizedBox(height: TaSpace.md),
 
@@ -182,21 +185,11 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: TaSpace.xl),
               Center(
                 child: TextButton.icon(
-                  onPressed: auth.token == null
-                      ? () => _openLogin(context)
-                      : () => _confirmLogout(context, services),
-                  icon: Icon(
-                    auth.token == null ? Icons.login : Icons.logout,
-                    size: 18,
-                  ),
-                  label: Text(
-                    auth.token == null
-                        ? 'Entrar com uma conta'
-                        : 'Sair e trocar de conta',
-                  ),
+                  onPressed: () => _confirmLogout(context, services),
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Sair e trocar de conta'),
                   style: TextButton.styleFrom(
-                    foregroundColor:
-                        auth.token == null ? TaColors.pasture : TaColors.clay,
+                    foregroundColor: TaColors.clay,
                   ),
                 ),
               ),
@@ -204,12 +197,6 @@ class SettingsScreen extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-
-  void _openLogin(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
@@ -243,7 +230,7 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
 
-    if (confirmed == true) await services.auth.logout();
+    if (confirmed == true) await services.logout();
   }
 
   Widget _row(BuildContext context, String label, String value) {

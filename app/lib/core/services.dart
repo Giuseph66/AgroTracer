@@ -30,7 +30,11 @@ const apiBaseUrl = String.fromEnvironment(
 /// Serviços de longa duração do app, criados uma vez e injetados na árvore.
 class AppServices {
   AppServices() : outbox = Outbox(), auth = AuthSession(baseUrl: apiBaseUrl) {
-    api = ApiClient(baseUrl: apiBaseUrl, tokenProvider: () => auth.token);
+    api = ApiClient(
+      baseUrl: apiBaseUrl,
+      tokenProvider: () => auth.token,
+      onUnauthorized: _handleUnauthorized,
+    );
     herd = HerdRepository(
       api: api,
       propertyIdProvider: () => auth.identity.propertyId,
@@ -39,6 +43,7 @@ class AppServices {
       outbox: outbox,
       baseUrl: apiBaseUrl,
       tokenProvider: () => auth.token,
+      onUnauthorized: _handleUnauthorized,
     );
   }
 
@@ -48,6 +53,7 @@ class AppServices {
   late final HerdRepository herd;
   late SyncService sync;
   bool _operationalStarted = false;
+  bool _endingSession = false;
 
   void start() {
     unawaited(_start());
@@ -61,10 +67,12 @@ class AppServices {
   }
 
   Future<void> activate() async {
-    if (_operationalStarted) return;
-    _operationalStarted = true;
     outbox.setIdentity(auth.identity);
-    sync.start();
+    herd.resetSession();
+    if (!_operationalStarted) {
+      _operationalStarted = true;
+      sync.start();
+    }
     await herd.restoreCache();
     await herd.refresh();
   }
@@ -73,6 +81,23 @@ class AppServices {
     final ok = await auth.login(email, password);
     if (ok) await activate();
     return ok;
+  }
+
+  Future<void> logout() async {
+    if (_endingSession) return;
+    _endingSession = true;
+    try {
+      sync.stop();
+      _operationalStarted = false;
+      herd.resetSession();
+      await auth.logout();
+    } finally {
+      _endingSession = false;
+    }
+  }
+
+  void _handleUnauthorized() {
+    if (auth.isAuthenticated && !_endingSession) unawaited(logout());
   }
 
   void dispose() {

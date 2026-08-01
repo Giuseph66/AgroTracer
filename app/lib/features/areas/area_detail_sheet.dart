@@ -3,7 +3,6 @@ import 'package:traceagro_map/traceagro_map.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/services.dart';
-import '../../core/sync/event_envelope.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
 import '../../domain/models.dart';
@@ -56,7 +55,7 @@ class _AreaDetailSheetState extends State<AreaDetailSheet> {
 
   void _load() {
     _animals = widget.services.api
-        .paddockAnimals(DevIdentity.propertyId, widget.paddock.id);
+        .paddockAnimals(widget.services.auth.identity.propertyId, widget.paddock.id);
   }
 
   @override

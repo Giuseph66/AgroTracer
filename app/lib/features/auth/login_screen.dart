@@ -12,42 +12,20 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _email = TextEditingController(text: 'joao@santarita.example');
-  final _password = TextEditingController(text: 'campo');
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _obscure = true;
 
-  /// Entrar com sucesso fecha a tela quando ela foi aberta por cima de outra
-  /// (Ajustes, no modo em que o login é opcional). Quando é a tela raiz do
-  /// app — servidor exige login — não há nada para fechar, e o AuthGate troca
-  /// para o AppShell sozinho ao notificar a mudança de sessão.
   Future<void> _login(AppServices services) async {
     final ok = await services.login(_email.text.trim(), _password.text);
-    if (ok && mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop(true);
-    }
+    if (!ok || !mounted) return;
   }
 
   @override
   Widget build(BuildContext context) {
     final services = Services.of(context);
-    // Só existe algo para "voltar" quando esta tela foi aberta por cima de
-    // outra — a partir de Ajustes, com login opcional. Como tela raiz do app
-    // (servidor exige login), não há para onde recuar.
-    final canDismiss = Navigator.of(context).canPop();
     return Scaffold(
       backgroundColor: TaColors.paperDim,
-      appBar: canDismiss
-          ? AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              foregroundColor: TaColors.ink,
-              leading: IconButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                icon: const Icon(Icons.close),
-                tooltip: 'Cancelar',
-              ),
-            )
-          : null,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

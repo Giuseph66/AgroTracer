@@ -7,11 +7,17 @@ import '../domain/models.dart';
 /// Cliente HTTP da API de leitura. Escrita nunca passa por aqui: todo fato do
 /// domínio entra pela fila de eventos (Doc 9 §4.3).
 class ApiClient {
-  ApiClient({required this.baseUrl, this.tokenProvider, http.Client? client})
+  ApiClient({
+    required this.baseUrl,
+    this.tokenProvider,
+    this.onUnauthorized,
+    http.Client? client,
+  })
     : _client = client ?? http.Client();
 
   final String baseUrl;
   final String? Function()? tokenProvider;
+  final void Function()? onUnauthorized;
   final http.Client _client;
 
   Map<String, String> get _headers {
@@ -28,6 +34,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -42,6 +49,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -56,6 +64,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -87,6 +96,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -109,6 +119,7 @@ class ApiClient {
     final res = await _client
         .get(Uri.parse('$baseUrl/v1/catalog/vet-products'), headers: _headers)
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -135,6 +146,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -174,6 +186,7 @@ class ApiClient {
         )
         .timeout(const Duration(seconds: 15));
 
+    _checkUnauthorized(res);
     if (res.statusCode != 200 && res.statusCode != 201) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -212,6 +225,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -241,6 +255,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -266,6 +281,7 @@ class ApiClient {
     final res = await _client
         .get(Uri.parse('$baseUrl/v1/shipments/$shipmentId'), headers: _headers)
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -298,6 +314,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -311,6 +328,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 15));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -324,6 +342,7 @@ class ApiClient {
           headers: _headers,
         )
         .timeout(const Duration(seconds: 20));
+    _checkUnauthorized(res);
     if (res.statusCode != 200) {
       throw http.ClientException('HTTP ${res.statusCode}');
     }
@@ -347,13 +366,126 @@ class ApiClient {
           }),
         )
         .timeout(const Duration(seconds: 10));
+    _checkUnauthorized(res);
     if (res.statusCode != 201) {
       throw http.ClientException('HTTP ${res.statusCode}: ${res.body}');
     }
   }
 
+  Future<List<AccessRole>> adminRoles() async {
+    final res = await _client
+        .get(Uri.parse('$baseUrl/v1/admin/roles'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    _expectSuccess(res);
+    final data = (jsonDecode(res.body) as Map)['data'] as List;
+    return data
+        .whereType<Map>()
+        .map(
+          (role) => AccessRole(
+            code: role['code'] as String,
+            name: role['name'] as String,
+            description: role['description'] as String,
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ManagedUser>> adminUsers() async {
+    final res = await _client
+        .get(Uri.parse('$baseUrl/v1/admin/users'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    _expectSuccess(res);
+    final data = (jsonDecode(res.body) as Map)['data'] as List;
+    return data.whereType<Map>().map(_managedUserFromJson).toList();
+  }
+
+  Future<ManagedUser> createAdminUser({
+    required String name,
+    required String email,
+    required List<String> roles,
+  }) async {
+    final res = await _client
+        .post(
+          Uri.parse('$baseUrl/v1/admin/users'),
+          headers: {'content-type': 'application/json', ..._headers},
+          body: jsonEncode({'name': name, 'email': email, 'roles': roles}),
+        )
+        .timeout(const Duration(seconds: 10));
+    _expectSuccess(res);
+    return _managedUserFromJson((jsonDecode(res.body) as Map)['data'] as Map);
+  }
+
+  Future<ManagedUser> updateAdminUser(
+    String userId, {
+    String? name,
+    String? email,
+    String? status,
+    List<String>? roles,
+  }) async {
+    final res = await _client
+        .patch(
+          Uri.parse('$baseUrl/v1/admin/users/$userId'),
+          headers: {'content-type': 'application/json', ..._headers},
+          body: jsonEncode({
+            'name': ?name,
+            'email': ?email,
+            'status': ?status,
+            'roles': ?roles,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    _expectSuccess(res);
+    return _managedUserFromJson((jsonDecode(res.body) as Map)['data'] as Map);
+  }
+
+  void _expectSuccess(http.Response response) {
+    _checkUnauthorized(response);
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+    String message = 'Não foi possível concluir esta alteração.';
+    try {
+      final body = jsonDecode(response.body) as Map;
+      final raw = body['message'];
+      if (raw is String && raw.isNotEmpty) message = raw;
+    } catch (_) {
+      // Resposta sem JSON: mantém a mensagem amigável e estável.
+    }
+    throw AdminApiException(message, response.statusCode);
+  }
+
+  void _checkUnauthorized(http.Response response) {
+    if (response.statusCode != 401) return;
+    onUnauthorized?.call();
+    throw const SessionExpiredException();
+  }
+
   void close() => _client.close();
 }
+
+class AdminApiException implements Exception {
+  const AdminApiException(this.message, this.statusCode);
+
+  final String message;
+  final int statusCode;
+
+  @override
+  String toString() => message;
+}
+
+class SessionExpiredException implements Exception {
+  const SessionExpiredException();
+
+  @override
+  String toString() => 'Sua sessão terminou. Entre novamente para continuar.';
+}
+
+ManagedUser _managedUserFromJson(Map raw) => ManagedUser(
+  id: raw['id'] as String,
+  name: raw['name'] as String,
+  email: (raw['email'] as String?) ?? 'sem e-mail',
+  status: raw['status'] as String,
+  roles: ((raw['roles'] as List?) ?? const []).whereType<String>().toList(),
+  createdAt: DateTime.parse(raw['createdAt'] as String).toLocal(),
+);
 
 Animal _animalFromJson(Map<String, Object?> j) {
   final birth = j['birthDate'] as String?;

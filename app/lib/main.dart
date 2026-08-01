@@ -64,11 +64,31 @@ class AuthGate extends StatelessWidget {
       builder: (context, _) {
         if (!auth.initialized) {
           return const Scaffold(
-            backgroundColor: TaColors.paperDim,
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: TaColors.pasture,
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image(
+                    image: AssetImage('assets/branding/mark.png'),
+                    width: 96,
+                    height: 96,
+                  ),
+                  SizedBox(height: TaSpace.lg),
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: TaColors.tagYellow,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
-        if (auth.requiresLogin && !auth.isAuthenticated) {
+        if (!auth.isAuthenticated) {
           return const LoginScreen();
         }
         return const AppShell();

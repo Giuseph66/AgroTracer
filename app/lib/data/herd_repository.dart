@@ -26,7 +26,7 @@ class TimelineResult {
 class HerdRepository extends ChangeNotifier {
   HerdRepository({required this.api, this.propertyIdProvider});
 
-  static const _storageKey = 'traceagro.herd-cache.v1';
+  String get _storageKey => 'traceagro.herd-cache.v2.$propertyId';
 
   final ApiClient api;
   final String Function()? propertyIdProvider;
@@ -57,6 +57,17 @@ class HerdRepository extends ChangeNotifier {
 
   String? _lastError;
   String? get lastError => _lastError;
+
+  void resetSession() {
+    _animals = const [];
+    _vetProducts = const [];
+    _paddocks = const [];
+    _shipments = const [];
+    _loadedFromServer = false;
+    _loading = false;
+    _lastError = null;
+    notifyListeners();
+  }
 
   Future<void> restoreCache() async {
     try {

@@ -20,21 +20,28 @@ class AuthSession extends ChangeNotifier {
 
   String? accessToken;
   EventIdentity identity = DevIdentity.defaultIdentity;
+  String? email;
+  List<String> roles = const [];
+  List<String> permissions = const [];
   bool initialized = false;
-  bool requiresLogin = false;
   bool busy = false;
   String? error;
   AuthFeedbackKind? feedbackKind;
 
-  bool get isAuthenticated => !requiresLogin || accessToken != null;
+  bool get requiresLogin => true;
+  bool get isAuthenticated => accessToken != null && _tokenIsUsable(accessToken!);
   String? get token => accessToken;
+  bool can(String permission) => permissions.contains(permission);
 
   Future<void> restore() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       accessToken = prefs.getString(_tokenKey);
       final raw = prefs.getString(_identityKey);
-      if (raw != null) identity = _identityFrom(jsonDecode(raw) as Map);
+      if (raw != null) _applyPrincipal(jsonDecode(raw) as Map);
+      if (accessToken != null && !_tokenIsUsable(accessToken!)) {
+        await logout(notify: false);
+      }
     } catch (_) {
       accessToken = null;
       identity = DevIdentity.defaultIdentity;
@@ -53,18 +60,18 @@ class AuthSession extends ChangeNotifier {
       if (res.statusCode != 200) {
         throw _AuthRequestException(res.statusCode, res.body);
       }
-      final config = jsonDecode(res.body) as Map;
-      requiresLogin = config['required'] == true;
-      if (requiresLogin && accessToken != null) {
+      if (accessToken != null) {
         final me = await _client.get(
           Uri.parse('$baseUrl/v1/auth/me'),
           headers: {'authorization': 'Bearer $accessToken'},
         );
         if (me.statusCode == 200) {
-          identity = _identityFrom((jsonDecode(me.body) as Map)['data'] as Map);
+          _applyPrincipal((jsonDecode(me.body) as Map)['data'] as Map);
           await _persist();
-        } else {
+        } else if (me.statusCode == 401 || me.statusCode == 403) {
           await logout(notify: false);
+        } else {
+          throw _AuthRequestException(me.statusCode, me.body);
         }
       }
       error = null;
@@ -75,7 +82,6 @@ class AuthSession extends ChangeNotifier {
       final feedback = _friendlyFeedback(err);
       error = feedback.message;
       feedbackKind = feedback.kind;
-      if (accessToken == null) requiresLogin = true;
     } finally {
       initialized = true;
       busy = false;
@@ -101,8 +107,7 @@ class AuthSession extends ChangeNotifier {
       }
       final body = jsonDecode(res.body) as Map;
       accessToken = body['accessToken'] as String;
-      identity = _identityFrom(body['principal'] as Map);
-      requiresLogin = true;
+      _applyPrincipal(body['principal'] as Map);
       await _persist();
       return true;
     } catch (err) {
@@ -119,6 +124,9 @@ class AuthSession extends ChangeNotifier {
   Future<void> logout({bool notify = true}) async {
     accessToken = null;
     identity = DevIdentity.defaultIdentity;
+    email = null;
+    roles = const [];
+    permissions = const [];
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_identityKey);
@@ -138,8 +146,18 @@ class AuthSession extends ChangeNotifier {
         'appVersion': identity.appVersion,
         'actorName': identity.actorName,
         'propertyName': identity.propertyName,
+        'email': email,
+        'roles': roles,
+        'permissions': permissions,
       }),
     );
+  }
+
+  void _applyPrincipal(Map raw) {
+    identity = _identityFrom(raw);
+    email = raw['email'] as String?;
+    roles = _stringList(raw['roles']);
+    permissions = _stringList(raw['permissions']);
   }
 
   EventIdentity _identityFrom(Map raw) => EventIdentity(
@@ -152,6 +170,25 @@ class AuthSession extends ChangeNotifier {
         (raw['name'] as String?) ?? (raw['actorName'] as String?) ?? 'João P.',
     propertyName: (raw['propertyName'] as String?) ?? 'Fazenda Santa Rita',
   );
+
+  List<String> _stringList(Object? value) => value is List
+      ? value.whereType<String>().toList(growable: false)
+      : const [];
+
+  bool _tokenIsUsable(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      final claims = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      ) as Map;
+      final expiresAt = claims['exp'];
+      return expiresAt is num &&
+          expiresAt * 1000 > DateTime.now().millisecondsSinceEpoch;
+    } catch (_) {
+      return false;
+    }
+  }
 
   _AuthFeedback _friendlyFeedback(Object err) {
     if (err is _AuthRequestException) {

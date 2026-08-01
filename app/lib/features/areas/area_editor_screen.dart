@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:traceagro_map/traceagro_map.dart';
 
 import '../../core/services.dart';
-import '../../core/sync/event_envelope.dart';
 import '../../core/theme/tokens.dart';
 import '../../data/api_client.dart';
 import '../../domain/models.dart';
@@ -148,13 +147,13 @@ class _AreaEditorScreenState extends State<AreaEditorScreen> {
     try {
       if (widget.isEditing) {
         await widget.services.api.updatePaddockBoundary(
-          DevIdentity.propertyId,
+          widget.services.auth.identity.propertyId,
           widget.paddock!.id,
           ringToApi(ring),
         );
       } else {
         await widget.services.api.createPaddock(
-          DevIdentity.propertyId,
+          widget.services.auth.identity.propertyId,
           name,
           ringToApi(ring),
         );
