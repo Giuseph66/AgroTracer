@@ -25,10 +25,10 @@ Resultados de teste na data de referência:
 | Suíte | Resultado |
 |-------|-----------|
 | `api npm test` (canonicalização) | 5/5 |
-| `api npm run test:e2e` (ingestão, autenticação e fluxo de campo contra Postgres real) | 16/16 |
-| `app flutter test` (canonical, outbox, widgets e cobertura de módulos) | 50/50 |
+| `api npm run test:e2e` (ingestão, autenticação, RBAC, administração e fluxo de campo contra Postgres real) | 17/17 |
+| `app flutter test` (canonical, outbox, sessão, widgets e cobertura de módulos) | 57/57 |
 | `flutter analyze` | limpo |
-| Playwright visível ponta a ponta (início, leitura, pesagem, vacinação, nascimento, embarque, sincronização, ajustes, animais, CSV e dossiê) | verificado; captura final em `output/playwright/final-home.png` |
+| Playwright visível ponta a ponta | login obrigatório, logout, central de acesso desktop e mobile 412×915 verificados em `output/playwright/` |
 
 ## 2. Componentes
 
@@ -56,6 +56,8 @@ Resultados de teste na data de referência:
     projeção de localização e embarques/recebimentos.
   - `007_access_control.sql` — vínculos de papel com vigência e seed OPER,
     PROD e VETE do laboratório.
+  - `008_admin_access.sql` — e-mail único, catálogo de códigos permitido e
+    vínculo ADMO vigente para administração do laboratório.
 
 ### 2.2 API (NestJS 11 + Fastify, porta 4009 por padrão — env `PORT`, ver `api/.env.example`)
 
@@ -73,7 +75,8 @@ Estrutura em `api/src/`:
 | `catalog/catalog.controller.ts` | `GET /v1/catalog/vet-products` |
 | `areas/areas.controller.ts` | Piquetes, geometrias e animais por área |
 | `shipments/shipments.controller.ts` | Lista/detalhe de expedições, conferência e GTA |
-| `auth/auth.controller.ts` | Configuração, login de desenvolvimento e identidade autenticada; guard JWT global |
+| `auth/` | Login dev/OIDC, validação JWT, sessão obrigatória em toda rota não pública, permissões `module.action` e RBAC centralizado |
+| `admin/` | Gestão organizacional de usuários: listar, criar, trocar roles vigentes e ativar/suspender; toda mutação gera AuditLog |
 | `reports/reports.controller.ts` | `GET /v1/reports/animals.csv`, `GET /v1/reports/animals/:id.json` e `.pdf` — inventário e dossiê verificável |
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
 | `anchor/fabric.gateway.ts` | Porta de saída Fabric. **Simulado** (`FABRIC_MODE != real`): latência + TxID derivado do hash + endorsingOrgs fixos. Trocar por `@hyperledger/fabric-gateway` na Fase 4 sem tocar no resto |
@@ -107,10 +110,10 @@ Estrutura em `app/lib/`:
 | `core/widgets/ear_tag.dart` | Componente-assinatura: brinco desenhado em CustomPainter (3 tamanhos) |
 | `core/widgets/common.dart` | SyncBadge (estados Doc 8 §5), SectionLabel, TaCard, ConnectivityPill, formatadores de data |
 | `core/sync/canonical.dart` | Canonicalização + SHA-256 em Dart — **gêmea byte a byte** de `api/src/events/canonical.ts` |
-| `core/sync/event_envelope.dart` | Envelope Doc 5 §1; identidade da sessão com fallback `DevIdentity`; assinatura do app ainda stub |
+| `core/sync/event_envelope.dart` | Envelope Doc 5 §1; eventos novos recebem a identidade autenticada do Outbox; `DevIdentity` permanece só como fixture de teste/dispositivo até B12 |
 | `core/sync/outbox.dart` | Fila de eventos: sequência monotônica, estados, restauração local via SharedPreferences, `adoptServerSequence()` e stream de mudanças. **Drift/SQLCipher é backlog B11** |
 | `core/sync/sync_service.dart` | Push em lote (500), backoff 5s→15min, ping de conectividade, adoção de sequência no boot, repescagem de provas de âncora a cada 8s, clock skew via header Date |
-| `core/auth/auth_session.dart` | Bootstrap, login dev, validação `/auth/me`, persistência de token/identidade e logout |
+| `core/auth/auth_session.dart` | Login obrigatório, validação `/auth/me`, expiração local do JWT, roles/permissões persistidas e logout |
 | `core/services.dart` | `AppServices` + InheritedWidget `Services`; sessão, identidade, sync e `apiBaseUrl` via `--dart-define=TRACEAGRO_API` |
 | `data/api_client.dart` | Leitura: animais, timeline, catálogo, áreas, embarques, genealogia, inventário CSV e dossiê; conversão wire→domínio |
 | `data/herd_repository.dart` | Rebanho/cache local persistido via SharedPreferences e atualizado pela API; `TimelineResult` distingue vazio de inacessível; **zero dados de exemplo** |
@@ -124,6 +127,7 @@ Estrutura em `app/lib/`:
 | `features/shipment/` | Expedição, conferência de chegada, divergência e GTA manual |
 | `features/sync/` | Central: card de conexão, conflitos ("precisam de você"), fila de envio com prova |
 | `features/settings/` | Servidor, estado, última sync, clock skew, identidade do aparelho, sync manual |
+| `features/admin/` | Central web responsiva para pessoas, perfis vigentes e suspensão de acesso; visível somente com `users.manage` |
 
 Testes: `test/canonical_test.dart` (lê `api/test/vectors.json` — paridade),
 `test/outbox_test.dart` (sequência, estados, R24, R27), `test/widget_test.dart`.
@@ -156,9 +160,11 @@ Semeada na migração 002 e fixa em `app/lib/core/sync/event_envelope.dart`
 | Dispositivo Field Terminal A1 | `44444444-4444-4444-8444-444444444444` |
 | Animais 4127/4088/3950/4201 | `11111111-1111-4111-8111-0000000041XX` |
 
-O login de desenvolvimento já substitui a identidade fixa quando a API exige
-sessão. A configuração OIDC/JWKS está disponível no servidor; o fluxo PKCE
-nativo e o enrollment de dispositivos continuam como evolução de produção.
+O login é obrigatório no app e na API: sem token válido, somente configuração e
+login são públicos. Organização e ator vêm da sessão; o deviceId continua como
+fixture do aparelho até o enrollment de B12. A configuração OIDC/JWKS está
+disponível no servidor; PKCE, MFA e PIN offline continuam como evolução de
+produção.
 
 ## 5. Bugs encontrados e corrigidos (histórico de decisão)
 

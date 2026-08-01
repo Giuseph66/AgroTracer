@@ -44,6 +44,12 @@ de usuários".
   5. Papéis mínimos nesta fase: OPER, PROD, VETE, ADMO (subconjunto do Doc 7 §2).
 - **Aceite**: sem sessão, nada além do login abre; evento sincronizado carrega actorId real; usuário OPER não consegue criar evento de sanidade privativo (403 com `ERR-SAN-001`); revogação bloqueia sync na tentativa seguinte; capturas do login aprovadas contra AGENTS.md.
 
+**Estado: em andamento.** Entregue: sessão obrigatória no app/API, JWT dev e
+JWKS OIDC, identidade real nos eventos, roles com vigência, permissão atômica
+`users.manage`, central administrativa responsiva e revogação por suspensão.
+Pendente para produção: Keycloak no compose, Authorization Code + PKCE, MFA,
+PIN offline e enrollment do dispositivo.
+
 ## B2 — Fazendas e áreas com mapa
 
 **Pedido**: "utilização do mapa pra eu demarcar as áreas... pra eu poder medir ou
