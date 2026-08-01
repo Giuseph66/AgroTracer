@@ -24,7 +24,13 @@ async function bootstrap() {
   );
 
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  app.enableCors();
+  // Métodos declarados explicitamente: o preflight do navegador recusava PUT
+  // com a configuração padrão, e a edição de contorno de piquete falhava sem
+  // chegar ao servidor.
+  app.enableCors({
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['content-type', 'authorization', 'idempotency-key'],
+  });
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
