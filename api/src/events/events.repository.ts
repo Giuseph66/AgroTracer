@@ -155,6 +155,53 @@ export class EventsRepository {
     return rows[0];
   }
 
+  async shipmentState(shipmentId: string): Promise<{
+    id: string;
+    status: string;
+    destination_property_id: string | null;
+    animal_ids: string[];
+  } | undefined> {
+    const { rows } = await this.pool.query(
+      `SELECT s.id, s.status, s.destination_property_id,
+              COALESCE(array_agg(sa.animal_id) FILTER (WHERE sa.animal_id IS NOT NULL), '{}') AS animal_ids
+         FROM core.shipment s
+         LEFT JOIN core.shipment_animal sa ON sa.shipment_id = s.id
+        WHERE s.id = $1
+        GROUP BY s.id`,
+      [shipmentId],
+    );
+    return rows[0];
+  }
+
+  async actorHasRole(
+    actorId: string,
+    organizationId: string,
+    roles: string[],
+    occurredAt: string,
+  ): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      `SELECT 1
+         FROM core.user_role_binding
+        WHERE user_id = $1
+          AND organization_id = $2
+          AND role_code = ANY($3::text[])
+          AND valid_from <= $4::timestamptz
+          AND (valid_to IS NULL OR valid_to > $4::timestamptz)
+        LIMIT 1`,
+      [actorId, organizationId, roles, occurredAt],
+    );
+    return rows.length > 0;
+  }
+
+  async identifier(id: string, animalId: string): Promise<{ id: string } | undefined> {
+    const { rows } = await this.pool.query(
+      `SELECT id FROM core.animal_identifier
+        WHERE id = $1 AND animal_id = $2 AND active`,
+      [id, animalId],
+    );
+    return rows[0];
+  }
+
   async resolveAnimalByRfid(rfid: string): Promise<string | undefined> {
     return this.animalHoldingRfid(rfid);
   }
@@ -622,9 +669,18 @@ export class EventsRepository {
     const destination = shipment.rows[0]?.destination_property_id;
     if (!destination) throw new Error('embarque sem propriedade de destino');
 
+    const expected = await client.query(
+      `SELECT animal_id FROM core.shipment_animal WHERE shipment_id = $1`,
+      [shipmentId],
+    );
+    const expectedIds = expected.rows.map((row) => row.animal_id as string);
+    const readSet = new Set(readIds);
+    const hasDiscrepancy = expectedIds.length !== readSet.size ||
+      expectedIds.some((animalId) => !readSet.has(animalId));
+
     await client.query(
       `UPDATE core.shipment SET status = $2, received_at = $3 WHERE id = $1`,
-      [shipmentId, readIds.length ? 'RECEIVED' : 'RECEIVED_WITH_DISCREPANCY', e.occurredAt],
+      [shipmentId, hasDiscrepancy ? 'RECEIVED_WITH_DISCREPANCY' : 'RECEIVED', e.occurredAt],
     );
     await client.query(
       `UPDATE core.shipment_animal
@@ -633,12 +689,38 @@ export class EventsRepository {
         WHERE shipment_id = $1`,
       [shipmentId, readIds],
     );
+    // Uma leitura que não estava na expedição é divergência excedente, mas
+    // continua rastreada no mesmo embarque para a conferência fechar o ciclo.
+    for (const animalId of readIds) {
+      await client.query(
+        `INSERT INTO core.shipment_animal (shipment_id, animal_id, received, discrepancy)
+         SELECT $1, $2, true, 'EXCESS'
+          WHERE NOT EXISTS (
+            SELECT 1 FROM core.shipment_animal WHERE shipment_id = $1 AND animal_id = $2
+          )`,
+        [shipmentId, animalId],
+      );
+    }
     for (const animalId of readIds) {
       await this.applyPropertyEntry(client, {
         ...e,
         animalId,
       } as EventEnvelopeDto, destination);
     }
+  }
+
+  async applyGtaRegistered(
+    client: PoolClient,
+    e: EventEnvelopeDto,
+    number: string,
+    uf: string | null,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE core.shipment
+          SET gta_number = $2, gta_uf = $3
+        WHERE id = $1`,
+      [str(e.payload['shipmentId']) ?? e.subjectId, number, uf],
+    );
   }
 
   async applyIdentifierLink(
@@ -698,6 +780,8 @@ export class EventsRepository {
               visual.visual_tag_number AS "visualTagNumber",
               s.lifecycle_status AS "lifecycleStatus",
               s.current_herd_lot AS "herdLot",
+              s.current_paddock_id AS "paddockId",
+              a.dam_id AS "damId",
               s.last_weight_kg AS "lastWeightKg", s.gmd_kg_day AS "gmdKgDay",
               s.withdrawal_until AS "withdrawalUntil"
          FROM core.animal a
@@ -711,6 +795,47 @@ export class EventsRepository {
         WHERE s.current_property_id = $1 OR $1 IS NULL
         ORDER BY visual.visual_tag_number`,
       [propertyId],
+    );
+    return rows;
+  }
+
+  async identifiers(animalId: string): Promise<unknown[]> {
+    const { rows } = await this.pool.query(
+      `SELECT id, identifier_type AS "type", rfid_code AS "rfidCode",
+              visual_tag_number AS "visualTagNumber",
+              official_number AS "officialNumber", active,
+              linked_at AS "linkedAt", unlinked_at AS "unlinkedAt",
+              unlink_reason AS "unlinkReason"
+         FROM core.animal_identifier
+        WHERE animal_id = $1
+        ORDER BY linked_at DESC`,
+      [animalId],
+    );
+    return rows;
+  }
+
+  async relations(animalId: string): Promise<unknown[]> {
+    const { rows } = await this.pool.query(
+      `SELECT 'DAM' AS relation, parent.id AS "animalId",
+              visual.visual_tag_number AS "visualTagNumber",
+              parent.sex, parent.breed_code AS "breedCode"
+         FROM core.animal child
+         JOIN core.animal parent ON parent.id = child.dam_id
+         LEFT JOIN core.animal_identifier visual
+           ON visual.animal_id = parent.id AND visual.active
+          AND visual.identifier_type = 'VISUAL'
+        WHERE child.id = $1
+       UNION ALL
+       SELECT 'OFFSPRING' AS relation, child.id AS "animalId",
+              visual.visual_tag_number AS "visualTagNumber",
+              child.sex, child.breed_code AS "breedCode"
+         FROM core.animal child
+         LEFT JOIN core.animal_identifier visual
+           ON visual.animal_id = child.id AND visual.active
+          AND visual.identifier_type = 'VISUAL'
+        WHERE child.dam_id = $1
+        ORDER BY relation, "visualTagNumber"`,
+      [animalId],
     );
     return rows;
   }

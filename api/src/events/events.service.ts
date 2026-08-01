@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { createPublicKey, verify as verifySignature } from 'node:crypto';
 
 import { payloadHash as computeHash } from './canonical';
 import { EventEnvelopeDto, EventType, EventVerdict } from './event.dto';
@@ -99,16 +100,17 @@ export class EventsService {
       });
     }
 
-    // 4. Assinatura do dispositivo (R26).
-    // TODO(F1): verificar ECDSA P-256 sobre
-    // `eventId|eventType|subjectId|occurredAt|deviceSequence|payloadHash`
-    // contra device.public_key. Enquanto o app não assina de verdade, exigimos
-    // apenas presença — a etapa está no lugar certo do pipeline.
-    if (!e.signature || e.signature.length < 4) {
+    // 4. Assinatura do dispositivo (R26). O modo legado mantém a fixture de
+    // laboratório, enquanto o modo ecdsa exige uma chave P-256 registrada.
+    const signatureMode = process.env.EVENT_SIGNATURE_MODE ?? 'legacy';
+    const signatureValid = verifyEventSignature(e, device.public_key);
+    if (signatureMode === 'ecdsa' ? !signatureValid : !e.signature || e.signature.length < 4) {
       return this.reject(e, ctx, {
         status: 'REJECTED',
         code: 'ERR-EVT-SIGNATURE',
-        detail: 'assinatura ausente ou malformada',
+        detail: signatureMode === 'ecdsa'
+          ? 'assinatura ECDSA inválida para a chave do dispositivo'
+          : 'assinatura ausente ou malformada',
       });
     }
 
@@ -158,6 +160,11 @@ export class EventsService {
 
     try {
       await this.repo.withTransaction(async (client) => {
+        // A FK de core.event.animal_id exige a identidade antes do evento.
+        // Ambos são criados na mesma transação, sem janela de inconsistência.
+        if (e.eventType === EventType.REGISTER_ANIMAL) {
+          await this.repo.insertAnimal(client, e);
+        }
         await this.repo.insertEvent(client, e, {
           clockSkewMs: ctx.clockSkewMs,
           timeSuspect,
@@ -183,6 +190,9 @@ export class EventsService {
   private async checkTypeRules(
     e: EventEnvelopeDto,
   ): Promise<Omit<EventVerdict, 'eventId'> | undefined> {
+    const roleFailure = await this.checkRoleRule(e);
+    if (roleFailure) return roleFailure;
+
     switch (e.eventType) {
       case EventType.REGISTER_ANIMAL: {
         const animalId = e.animalId ?? e.subjectId;
@@ -246,6 +256,16 @@ export class EventsService {
             detail: 'oldIdentifierId e reason são obrigatórios na troca',
           };
         }
+        if (e.eventType === EventType.REIDENTIFICATION && e.animalId) {
+          const oldId = str(e.payload['oldIdentifierId']);
+          if (oldId && !(await this.repo.identifier(oldId, e.animalId))) {
+            return {
+              status: 'REJECTED',
+              code: 'ERR-IDF-004',
+              detail: 'identificador anterior não está ativo neste animal',
+            };
+          }
+        }
         return undefined;
       }
 
@@ -270,6 +290,100 @@ export class EventsService {
             status: 'REJECTED',
             code: 'ERR-AREA-001',
             detail: 'piquete inexistente ou fora da propriedade do evento',
+          };
+        }
+        return undefined;
+      }
+
+      case EventType.SHIPMENT_DISPATCHED: {
+        const purpose = str(e.payload['purpose']);
+        const animalIds = Array.isArray(e.payload['animalIds'])
+          ? e.payload['animalIds'].filter((id): id is string => typeof id === 'string')
+          : [];
+        if (animalIds.length === 0) {
+          return {
+            status: 'REJECTED',
+            code: 'ERR-MOV-002',
+            detail: 'embarque precisa de ao menos um animal',
+          };
+        }
+        for (const animalId of animalIds) {
+          const state = await this.repo.animalState(animalId);
+          if (!state) {
+            return {
+              status: 'CONFLICT',
+              code: 'SUBJECT_UNKNOWN',
+              detail: `animal ${animalId} inexistente nesta base`,
+            };
+          }
+          if (state.lifecycle_status === 'IN_TRANSIT') {
+            return {
+              status: 'CONFLICT',
+              code: 'ERR-MOV-001',
+              detail: `animal ${animalId} já está em trânsito`,
+            };
+          }
+          if (purpose === 'ABATE' &&
+              (state.quarantined || (state.withdrawal_until &&
+                  state.withdrawal_until > new Date(e.occurredAt)))) {
+            return {
+              status: 'CONFLICT',
+              code: 'ERR-MOV-001',
+              detail: `animal ${animalId} tem bloqueio sanitário para abate`,
+            };
+          }
+        }
+        return undefined;
+      }
+
+      case EventType.SHIPMENT_RECEIVED: {
+        const shipmentId = str(e.payload['shipmentId']) ?? e.subjectId;
+        const shipment = await this.repo.shipmentState(shipmentId);
+        if (!shipment) {
+          return {
+            status: 'CONFLICT',
+            code: 'SUBJECT_UNKNOWN',
+            detail: `embarque ${shipmentId} inexistente`,
+          };
+        }
+        if (shipment.status !== 'DISPATCHED') {
+          return {
+            status: 'CONFLICT',
+            code: 'ERR-MOV-003',
+            detail: `embarque está ${shipment.status.toLowerCase()} e não pode ser recebido`,
+          };
+        }
+        const readAnimalIds = Array.isArray(e.payload['readAnimalIds'])
+          ? e.payload['readAnimalIds'].filter((id): id is string => typeof id === 'string')
+          : [];
+        for (const animalId of readAnimalIds) {
+          if (!(await this.repo.animalExists(animalId))) {
+            return {
+              status: 'CONFLICT',
+              code: 'SUBJECT_UNKNOWN',
+              detail: `animal ${animalId} inexistente nesta base`,
+            };
+          }
+        }
+        return undefined;
+      }
+
+      case EventType.GTA_REGISTERED: {
+        const shipmentId = str(e.payload['shipmentId']) ?? e.subjectId;
+        if (!(await this.repo.shipmentState(shipmentId))) {
+          return {
+            status: 'CONFLICT',
+            code: 'SUBJECT_UNKNOWN',
+            detail: `embarque ${shipmentId} inexistente`,
+          };
+        }
+        const number = str(e.payload['gtaNumber']);
+        const uf = str(e.payload['gtaUf']);
+        if (!number || !uf || !/^[A-Z]{2}$/.test(uf)) {
+          return {
+            status: 'REJECTED',
+            code: 'ERR-MOV-004',
+            detail: 'GTA exige número e UF com duas letras',
           };
         }
         return undefined;
@@ -309,6 +423,30 @@ export class EventsService {
     }
   }
 
+  private async checkRoleRule(
+    e: EventEnvelopeDto,
+  ): Promise<Omit<EventVerdict, 'eventId'> | undefined> {
+    const privateHealth = new Set<EventType>([
+      EventType.DIAGNOSIS,
+      EventType.TREATMENT,
+      EventType.QUARANTINE,
+      EventType.RELEASE,
+    ]);
+    if (!privateHealth.has(e.eventType)) return undefined;
+    const allowed = await this.repo.actorHasRole(
+      e.actorId,
+      e.organizationId,
+      ['VETE'],
+      e.occurredAt,
+    );
+    if (allowed) return undefined;
+    return {
+      status: 'REJECTED',
+      code: 'ERR-SAN-001',
+      detail: `${e.eventType} exige papel VETE vigente`,
+    };
+  }
+
   private async applyProjections(
     client: Parameters<
       Parameters<EventsRepository['withTransaction']>[0]
@@ -317,7 +455,6 @@ export class EventsService {
   ): Promise<void> {
     switch (e.eventType) {
       case EventType.REGISTER_ANIMAL:
-        await this.repo.insertAnimal(client, e);
         break;
 
       case EventType.WEIGHING:
@@ -403,6 +540,15 @@ export class EventsService {
         await this.repo.applyShipmentReceived(client, e);
         break;
 
+      case EventType.GTA_REGISTERED:
+        await this.repo.applyGtaRegistered(
+          client,
+          e,
+          str(e.payload['gtaNumber'])!,
+          str(e.payload['gtaUf']) ?? null,
+        );
+        break;
+
       case EventType.SLAUGHTER:
         await this.repo.applyLifecycle(client, e, 'SLAUGHTERED');
         break;
@@ -443,6 +589,14 @@ export class EventsService {
     return this.repo.timeline(animalId);
   }
 
+  identifiers(animalId: string) {
+    return this.repo.identifiers(animalId);
+  }
+
+  relations(animalId: string) {
+    return this.repo.relations(animalId);
+  }
+
   animals(propertyId: string) {
     return this.repo.animalsByProperty(propertyId);
   }
@@ -469,4 +623,42 @@ function valueAsText(v: unknown): string | undefined {
   if (typeof v === 'string') return v;
   if (v === undefined || v === null) return undefined;
   return JSON.stringify(v);
+}
+
+/** Mensagem assinada pelo dispositivo (Doc 8 §9 / R26). */
+export function eventSigningInput(e: Pick<
+  EventEnvelopeDto,
+  'eventId' | 'eventType' | 'subjectId' | 'occurredAt' | 'deviceSequence' | 'payloadHash'
+>): string {
+  return [
+    e.eventId,
+    e.eventType,
+    e.subjectId,
+    e.occurredAt,
+    e.deviceSequence,
+    e.payloadHash,
+  ].join('|');
+}
+
+export function verifyEventSignature(
+  e: EventEnvelopeDto,
+  publicKey: string | null,
+): boolean {
+  if (!publicKey || !e.signature || e.signature.length < 4) return false;
+  try {
+    const key = publicKey.trim().startsWith('{')
+      ? createPublicKey({
+          key: JSON.parse(publicKey),
+          format: 'jwk',
+        })
+      : createPublicKey(publicKey);
+    return verifySignature(
+      'sha256',
+      Buffer.from(eventSigningInput(e), 'utf8'),
+      { key, dsaEncoding: 'der' },
+      Buffer.from(e.signature, 'base64url'),
+    );
+  } catch {
+    return false;
+  }
 }

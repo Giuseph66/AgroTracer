@@ -1,6 +1,7 @@
-import { Controller, Get, Inject, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException, Param, Req } from '@nestjs/common';
 import { Pool } from 'pg';
 
+import { AuthPrincipal } from '../auth/auth.types';
 import { PG_POOL } from '../database/database.module';
 
 @Controller('devices')
@@ -15,11 +16,15 @@ export class DevicesController {
    * subiram — o servidor é quem sabe onde a contagem parou (Doc 8 §3).
    */
   @Get(':id/sync-state')
-  async syncState(@Param('id') id: string) {
+  async syncState(
+    @Param('id') id: string,
+    @Req() request: { user?: AuthPrincipal },
+  ) {
+    const scopedId = request.user?.deviceId ?? id;
     const { rows } = await this.pool.query(
       `SELECT id, status, last_sequence
          FROM core.device WHERE id = $1`,
-      [id],
+      [scopedId],
     );
     const device = rows[0];
     if (!device) throw new NotFoundException();

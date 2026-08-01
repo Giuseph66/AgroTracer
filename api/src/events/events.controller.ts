@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 
 import { EventEnvelopeDto, SyncBatchDto } from './event.dto';
 import { EventsService } from './events.service';
+import { AuthPrincipal } from '../auth/auth.types';
 
 @Controller()
 export class EventsController {
@@ -9,8 +10,8 @@ export class EventsController {
 
   /** Ingestão de 1 evento online (Doc 9 §4.4). */
   @Post('events')
-  ingestOne(@Body() dto: EventEnvelopeDto) {
-    return this.events.ingestOne(dto);
+  ingestOne(@Body() dto: EventEnvelopeDto, @Req() request: { user?: AuthPrincipal }) {
+    return this.events.ingestOne(scopeEvent(dto, request.user));
   }
 
   /**
@@ -19,10 +20,11 @@ export class EventsController {
    * derruba os demais.
    */
   @Post('sync/batches')
-  async ingestBatch(@Body() dto: SyncBatchDto) {
+  async ingestBatch(@Body() dto: SyncBatchDto, @Req() request: { user?: AuthPrincipal }) {
+    const user = request.user;
     const { syncJobId, results } = await this.events.ingestBatch(
-      dto.deviceId,
-      dto.events,
+      user?.deviceId ?? dto.deviceId,
+      dto.events.map((event) => scopeEvent(event, user)),
       dto.clockSkewMs,
     );
     return { batchId: dto.batchId, syncJobId, results };
@@ -33,4 +35,15 @@ export class EventsController {
   async conflicts() {
     return { data: await this.events.conflicts() };
   }
+}
+
+function scopeEvent(event: EventEnvelopeDto, user?: AuthPrincipal): EventEnvelopeDto {
+  if (!user) return event;
+  return {
+    ...event,
+    actorId: user.actorId,
+    organizationId: user.organizationId,
+    deviceId: user.deviceId,
+    propertyId: user.propertyId,
+  };
 }

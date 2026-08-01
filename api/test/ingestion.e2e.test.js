@@ -18,7 +18,7 @@ const ANIMAL = '11111111-1111-4111-8111-000000004127';
 const ANIMAL_2 = '11111111-1111-4111-8111-000000004088';
 const DEVICE = '44444444-4444-4444-8444-444444444444';
 
-let sequence = Date.now() % 1_000_000; // não colide com execuções anteriores
+let sequence = 0;
 
 function makeEvent(overrides = {}) {
   const payload = overrides.payload ?? {
@@ -66,6 +66,10 @@ before(async () => {
       `API não respondeu em ${BASE}. Suba com: docker compose -f compose.dev.yml up -d && (cd api && npm start)`,
     );
   }
+  const state = await (
+    await fetch(`${BASE}/v1/devices/${DEVICE}/sync-state`)
+  ).json();
+  sequence = state.lastSequence + 1000;
 });
 
 test('evento válido é aceito e persistido', async () => {
