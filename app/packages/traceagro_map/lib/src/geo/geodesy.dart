@@ -93,6 +93,18 @@ abstract final class Geodesy {
     return GeoPoint(lat / points.length, lon / points.length);
   }
 
+  /// Ponto médio entre dois pontos — usado para oferecer "inserir vértice
+  /// aqui" no meio de uma aresta durante o desenho.
+  ///
+  /// Média aritmética de lat/lon, não grande círculo: na escala de um
+  /// piquete (metros a poucos quilômetros) a diferença é submilimétrica, e a
+  /// aproximação simples é o que se espera de um ponto de referência visual
+  /// que o operador ainda vai arrastar para ajustar.
+  static GeoPoint midpoint(GeoPoint a, GeoPoint b) => GeoPoint(
+        (a.latitude + b.latitude) / 2,
+        (a.longitude + b.longitude) / 2,
+      );
+
   /// Retângulo envolvente: sudoeste e nordeste.
   static (GeoPoint southWest, GeoPoint northEast) bounds(
     List<GeoPoint> points,
