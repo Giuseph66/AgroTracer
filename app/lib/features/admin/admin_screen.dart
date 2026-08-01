@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services.dart';
@@ -84,7 +83,7 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     final services = Services.of(context);
-    if (!kIsWeb || !services.auth.canManageUsers) {
+    if (!services.auth.canManageUsers) {
       return const _AccessDenied();
     }
 

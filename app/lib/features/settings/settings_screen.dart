@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services.dart';
@@ -65,7 +64,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
 
-              if (kIsWeb && auth.canManageUsers) ...[
+              if (auth.canManageUsers) ...[
                 const SizedBox(height: TaSpace.md),
                 TaCard(
                   onTap: () => Navigator.of(context).push(
