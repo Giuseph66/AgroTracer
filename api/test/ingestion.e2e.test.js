@@ -19,6 +19,24 @@ const ANIMAL_2 = '11111111-1111-4111-8111-000000004088';
 const DEVICE = '44444444-4444-4444-8444-444444444444';
 
 let sequence = 0;
+let token;
+
+function headers(extra = {}) {
+  return { ...extra, authorization: `Bearer ${token}` };
+}
+
+async function login() {
+  const response = await fetch(`${BASE}/v1/auth/dev-login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email: 'joao@santarita.example',
+      password: 'campo',
+    }),
+  });
+  assert.equal(response.status, 201);
+  token = (await response.json()).accessToken;
+}
 
 function makeEvent(overrides = {}) {
   const payload = overrides.payload ?? {
@@ -53,21 +71,26 @@ function makeEvent(overrides = {}) {
 async function postEvent(event) {
   const res = await fetch(`${BASE}/v1/events`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: headers({ 'content-type': 'application/json' }),
     body: JSON.stringify(event),
   });
   return res.json();
 }
 
 before(async () => {
-  const res = await fetch(`${BASE}/v1/anchors`).catch(() => null);
+  await login();
+  const res = await fetch(`${BASE}/v1/anchors`, {
+    headers: headers(),
+  }).catch(() => null);
   if (!res || !res.ok) {
     throw new Error(
       `API não respondeu em ${BASE}. Suba com: docker compose -f compose.dev.yml up -d && (cd api && npm start)`,
     );
   }
   const state = await (
-    await fetch(`${BASE}/v1/devices/${DEVICE}/sync-state`)
+    await fetch(`${BASE}/v1/devices/${DEVICE}/sync-state`, {
+      headers: headers(),
+    })
   ).json();
   sequence = state.lastSequence + 1000;
 });
@@ -78,7 +101,9 @@ test('evento válido é aceito e persistido', async () => {
   assert.equal(verdict.status, 'ACCEPTED');
 
   const timeline = await (
-    await fetch(`${BASE}/v1/animals/${ANIMAL}/timeline`)
+    await fetch(`${BASE}/v1/animals/${ANIMAL}/timeline`, {
+      headers: headers(),
+    })
   ).json();
   const found = timeline.data.find((e) => e.eventId === event.eventId);
   assert.ok(found, 'evento deve aparecer na linha do tempo');
@@ -95,7 +120,9 @@ test('reenvio do mesmo eventId devolve o veredicto original (R22/R23)', async ()
   assert.equal(second.duplicate, true);
 
   const timeline = await (
-    await fetch(`${BASE}/v1/animals/${ANIMAL}/timeline`)
+    await fetch(`${BASE}/v1/animals/${ANIMAL}/timeline`, {
+      headers: headers(),
+    })
   ).json();
   const occurrences = timeline.data.filter((e) => e.eventId === event.eventId);
   assert.equal(occurrences.length, 1, 'reenvio não pode duplicar no histórico');
@@ -156,7 +183,7 @@ test('lote fora de ordem é processado por deviceSequence (R27)', async () => {
   // Envia o mais novo primeiro; o servidor precisa reordenar.
   const res = await fetch(`${BASE}/v1/sync/batches`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: headers({ 'content-type': 'application/json' }),
     body: JSON.stringify({
       batchId: uuidv7(),
       deviceId: DEVICE,
@@ -179,7 +206,7 @@ test('falha de um evento não derruba o lote', async () => {
 
   const res = await fetch(`${BASE}/v1/sync/batches`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: headers({ 'content-type': 'application/json' }),
     body: JSON.stringify({
       batchId: uuidv7(),
       deviceId: DEVICE,
@@ -201,7 +228,9 @@ test('evento aceito é ancorado e a prova fica disponível', async () => {
   // A ancoragem é assíncrona por definição (Doc 8 §5); o worker roda a cada 3s.
   let anchor;
   for (let i = 0; i < 15; i++) {
-    const res = await fetch(`${BASE}/v1/anchors/${event.eventId}/proof`);
+    const res = await fetch(`${BASE}/v1/anchors/${event.eventId}/proof`, {
+      headers: headers(),
+    });
     if (res.ok) {
       anchor = await res.json();
       if (anchor.status === 'CONFIRMED') break;
@@ -229,6 +258,7 @@ test('projeção de peso é recalculada pelo servidor, não informada', async ()
   const animals = await (
     await fetch(
       `${BASE}/v1/animals?propertyId=66666666-6666-4666-8666-666666666666`,
+      { headers: headers() },
     )
   ).json();
   const animal = animals.data.find((a) => a.animalId === ANIMAL);

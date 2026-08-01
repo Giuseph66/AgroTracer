@@ -11,6 +11,8 @@ const ORG = '22222222-2222-4222-8222-222222222222';
 const ACTOR = '33333333-3333-4333-8333-333333333333';
 const VET = '33333333-3333-4333-8333-000000000002';
 let sequence = 0;
+let token;
+let vetToken;
 
 function event(overrides = {}) {
   const payload = overrides.payload ?? {};
@@ -37,14 +39,32 @@ function event(overrides = {}) {
   };
 }
 
-async function json(path, options) {
-  const response = await fetch(`${BASE}${path}`, options);
+async function login(email) {
+  const response = await fetch(`${BASE}/v1/auth/dev-login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: 'campo' }),
+  });
+  assert.equal(response.status, 201);
+  return (await response.json()).accessToken;
+}
+
+async function json(path, options = {}, accessToken = token) {
+  const response = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
   return { response, body: await response.json() };
 }
 
 before(async () => {
-  const response = await fetch(`${BASE}/v1/anchors`);
-  assert.equal(response.ok, true);
+  token = await login('joao@santarita.example');
+  vetToken = await login('carla@vet.example');
+  const response = await json('/v1/anchors');
+  assert.equal(response.response.ok, true);
   const state = await json(`/v1/devices/${DEVICE}/sync-state`);
   sequence = state.body.lastSequence + 1000;
 });
@@ -263,6 +283,6 @@ test('ato sanitário privativo exige VETE vigente', async () => {
       subjectId: animalId,
       payload: { diagnosis: 'observação veterinária de teste' },
     })),
-  });
+  }, vetToken);
   assert.equal(accepted.body.status, 'ACCEPTED', JSON.stringify(accepted.body));
 });
