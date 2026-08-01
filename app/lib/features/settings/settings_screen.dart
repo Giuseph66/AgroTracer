@@ -4,9 +4,13 @@ import '../../core/services.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
+import '../auth/login_screen.dart';
 
-/// Ajustes: o que o operador precisa conferir quando algo não vai bem —
-/// qual aparelho é este, com qual servidor fala, e o que está pendente.
+/// Ajustes: quem está operando, se a fila está subindo, e o essencial deste
+/// aparelho — sem repetir o que já aparece em outras telas.
+///
+/// Trocar de conta é a ação que mais importa aqui: um aparelho compartilhado
+/// entre operadores precisa disso rápido, sem procurar em submenu.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -17,90 +21,149 @@ class SettingsScreen extends StatelessWidget {
 
     return SafeArea(
       child: ListenableBuilder(
-        listenable: services.sync,
+        listenable: Listenable.merge([services.sync, services.auth]),
         builder: (context, _) {
           final sync = services.sync;
+          final auth = services.auth;
+          final identity = auth.identity;
+
           return ListView(
             padding: const EdgeInsets.all(TaSpace.md),
             children: [
               Text('Ajustes', style: t.displayMedium),
               const SizedBox(height: TaSpace.lg),
-              if (services.auth.token != null) ...[
-                const SectionLabel('Sessão'),
-                const SizedBox(height: TaSpace.sm),
+
+              // Quem está operando + trocar de conta, sempre visível e no
+              // topo: é a pergunta mais comum num aparelho compartilhado.
+              // Sem sessão ativa, o cartão vira o próprio convite para entrar
+              // — sem isso não haveria nenhum caminho até o login quando o
+              // servidor roda em modo opcional.
+              if (auth.token != null)
                 TaCard(
-                  padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
-                  child: Column(
+                  child: Row(
                     children: [
-                      _row(
-                        context,
-                        'Operador',
-                        '${services.auth.identity.actorName} · ${services.auth.identity.actorId}',
+                      _Avatar(name: identity.actorName),
+                      const SizedBox(width: TaSpace.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(identity.actorName, style: t.titleMedium),
+                            Text(
+                              identity.propertyName,
+                              style: t.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                      const Divider(),
-                      _row(
-                        context,
-                        'Organização',
-                        services.auth.identity.organizationId,
+                      IconButton(
+                        onPressed: () => _confirmLogout(context, services),
+                        icon: const Icon(Icons.swap_horiz),
+                        tooltip: 'Trocar de conta',
+                        color: TaColors.clay,
                       ),
-                      const Divider(),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => services.auth.logout(),
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Encerrar sessão'),
+                    ],
+                  ),
+                )
+              else
+                TaCard(
+                  onTap: () => _openLogin(context),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: TaColors.paperDim,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.person_outline,
+                            color: TaColors.inkSoft),
+                      ),
+                      const SizedBox(width: TaSpace.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Sem sessão ativa', style: t.titleMedium),
+                            Text(
+                              'Toque para entrar com sua identidade de operador.',
+                              style: t.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: TaColors.inkSoft),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: TaSpace.md),
+
+              // Conexão em uma linha: estado + quando sincronizou pela última
+              // vez. Detalhe técnico só aparece se houver erro para explicar.
+              TaCard(
+                onTap: () {
+                  services.sync.sync();
+                  services.herd.refresh();
+                },
+                child: Row(
+                  children: [
+                    _ConnectivityDot(state: sync.connectivity),
+                    const SizedBox(width: TaSpace.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _connectivityLabel(sync.connectivity),
+                            style: t.bodyMedium!
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            sync.lastSyncAt == null
+                                ? 'ainda não sincronizou'
+                                : 'última sincronização às '
+                                    '${hourFmt.format(sync.lastSyncAt!)}',
+                            style: t.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.sync, color: TaColors.inkSoft, size: 20),
+                  ],
+                ),
+              ),
+
+              if (sync.lastError != null) ...[
+                const SizedBox(height: TaSpace.sm),
+                Container(
+                  padding: const EdgeInsets.all(TaSpace.sm),
+                  decoration: BoxDecoration(
+                    color: TaColors.clayBg,
+                    borderRadius: BorderRadius.circular(TaRadius.sm),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          size: 16, color: TaColors.clay),
+                      const SizedBox(width: TaSpace.xs),
+                      Expanded(
+                        child: Text(
+                          sync.lastError!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.bodySmall!.copyWith(color: TaColors.clay),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: TaSpace.lg),
               ],
-              const SectionLabel('Conexão'),
-              const SizedBox(height: TaSpace.sm),
-              TaCard(
-                padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
-                child: Column(
-                  children: [
-                    _row(context, 'Servidor', apiBaseUrl),
-                    const Divider(),
-                    _row(
-                      context,
-                      'Estado',
-                      _connectivityLabel(sync.connectivity),
-                    ),
-                    const Divider(),
-                    _row(
-                      context,
-                      'Última sincronização',
-                      sync.lastSyncAt == null
-                          ? 'ainda não sincronizou'
-                          : dayHourFmt.format(sync.lastSyncAt!),
-                    ),
-                    const Divider(),
-                    _row(
-                      context,
-                      'Desvio de relógio',
-                      '${sync.clockSkewMs} ms em relação ao servidor',
-                    ),
-                  ],
-                ),
-              ),
-              if (sync.lastError != null) ...[
-                const SizedBox(height: TaSpace.sm),
-                Container(
-                  padding: const EdgeInsets.all(TaSpace.md),
-                  decoration: BoxDecoration(
-                    color: TaColors.clayBg,
-                    borderRadius: BorderRadius.circular(TaRadius.md),
-                  ),
-                  child: Text(
-                    'Último erro de envio: ${sync.lastError}',
-                    style: t.bodySmall!.copyWith(color: TaColors.clay),
-                  ),
-                ),
-              ],
+
               const SizedBox(height: TaSpace.lg),
               const SectionLabel('Este aparelho'),
               const SizedBox(height: TaSpace.sm),
@@ -108,41 +171,34 @@ class SettingsScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
                 child: Column(
                   children: [
-                    _row(
-                      context,
-                      'Dispositivo',
-                      services.auth.identity.deviceId,
-                    ),
+                    _row(context, 'Dispositivo', _short(identity.deviceId)),
                     const Divider(),
-                    _row(
-                      context,
-                      'Versão do app',
-                      services.auth.identity.appVersion,
-                    ),
-                    const Divider(),
-                    _row(context, 'Leitor', 'AT-880 · Bluetooth'),
-                    const Divider(),
-                    _row(context, 'Balança', 'AT-2 · serial'),
+                    _row(context, 'App · Servidor',
+                        '${identity.appVersion} · ${_host(apiBaseUrl)}'),
                   ],
                 ),
               ),
-              const SizedBox(height: TaSpace.md),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    services.sync.sync();
-                    services.herd.refresh();
-                  },
-                  icon: const Icon(Icons.sync),
-                  label: const Text('Sincronizar agora'),
+
+              const SizedBox(height: TaSpace.xl),
+              Center(
+                child: TextButton.icon(
+                  onPressed: auth.token == null
+                      ? () => _openLogin(context)
+                      : () => _confirmLogout(context, services),
+                  icon: Icon(
+                    auth.token == null ? Icons.login : Icons.logout,
+                    size: 18,
+                  ),
+                  label: Text(
+                    auth.token == null
+                        ? 'Entrar com uma conta'
+                        : 'Sair e trocar de conta',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        auth.token == null ? TaColors.pasture : TaColors.clay,
+                  ),
                 ),
-              ),
-              const SizedBox(height: TaSpace.sm),
-              Text(
-                'Enrolamento com chave no Keystore, MFA e revogação remota '
-                'entram na Fase 2 (módulos 1 e 17 do escopo funcional).',
-                style: t.bodySmall,
               ),
             ],
           );
@@ -151,19 +207,58 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _openLogin(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+  }
+
+  Future<void> _confirmLogout(
+    BuildContext context,
+    AppServices services,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Trocar de conta?'),
+        content: const Text(
+          'Você sai da sessão atual e pode entrar com outro operador. Os '
+          'registros já feitos neste aparelho continuam salvos e sobem '
+          'normalmente na próxima sincronização.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: TaColors.clay,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await services.auth.logout();
+  }
+
   Widget _row(BuildContext context, String label, String value) {
     final t = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 140, child: Text(label, style: t.bodyMedium)),
-          Expanded(
+          Expanded(child: Text(label, style: t.bodyMedium)),
+          Flexible(
             child: Text(
               value,
-              style: t.labelMedium,
+              style: t.labelSmall,
               textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -172,8 +267,61 @@ class SettingsScreen extends StatelessWidget {
   }
 
   String _connectivityLabel(ConnectivityState s) => switch (s) {
-    ConnectivityState.online => 'conectado',
-    ConnectivityState.syncing => 'enviando',
-    ConnectivityState.offline => 'sem conexão — registros seguem locais',
-  };
+        ConnectivityState.online => 'Conectado',
+        ConnectivityState.syncing => 'Enviando registros',
+        ConnectivityState.offline => 'Sem conexão',
+      };
+
+  String _short(String id) => id.length <= 8 ? id : '${id.substring(0, 8)}…';
+
+  String _host(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.host.isNotEmpty ? uri.host : url;
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        color: TaColors.tagYellow,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 18,
+          color: TaColors.stamp,
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectivityDot extends StatelessWidget {
+  const _ConnectivityDot({required this.state});
+  final ConnectivityState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (state) {
+      ConnectivityState.online => TaColors.sage,
+      ConnectivityState.syncing => TaColors.sky,
+      ConnectivityState.offline => TaColors.tagYellowDeep,
+    };
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
 }

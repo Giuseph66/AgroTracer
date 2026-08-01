@@ -65,12 +65,15 @@ class AreaMapViewState extends State<AreaMapView> {
     );
   }
 
-  void focusArea(MapArea area) {
+  void focusArea(
+    MapArea area, {
+    EdgeInsets padding = const EdgeInsets.all(64),
+  }) {
     final (sw, ne) = Geodesy.bounds(area.ring);
     _controller.fitCamera(
       CameraFit.bounds(
         bounds: LatLngBounds(sw.toLatLng(), ne.toLatLng()),
-        padding: const EdgeInsets.all(64),
+        padding: padding,
       ),
     );
   }

@@ -57,7 +57,7 @@ Resultados de teste na data de referência:
   - `007_access_control.sql` — vínculos de papel com vigência e seed OPER,
     PROD e VETE do laboratório.
 
-### 2.2 API (NestJS 11 + Fastify, porta 3999)
+### 2.2 API (NestJS 11 + Fastify, porta 4009 por padrão — env `PORT`, ver `api/.env.example`)
 
 Estrutura em `api/src/`:
 
@@ -138,7 +138,7 @@ divergência de um byte rejeita todo evento do campo com ERR-EVT-HASH.
 ## 3. Como rodar
 
 Ver `README.md` (raiz). Resumo: compose (banco 5433) → `api: npm run build &&
-PORT=3999 npm start` → `app: flutter run`. Web de teste:
+cp .env.example .env && npm run dev` → `app: flutter run`. Web de teste:
 `flutter build web --release` + servidor estático em 8347.
 
 ## 4. Identidade de laboratório (fixture — substituir no login real)

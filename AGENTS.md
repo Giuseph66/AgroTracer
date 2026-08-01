@@ -137,11 +137,18 @@ novo sem registrar DECISÃO em doc.
 
 ```bash
 docker compose -f compose.dev.yml up -d          # Postgres 5433 (schema+seed)
-cd api && npm install && npm run build && PORT=3999 npm start
-cd app && flutter run                             # ou -d chrome
-# API alternativa p/ dispositivo físico:
-flutter run --dart-define=TRACEAGRO_API=http://<ip>:3999
+cd api && cp .env.example .env && npm install && npm run dev   # API em :4009
+cd app && flutter run                             # ou -d chrome --web-port 8347
+# API alternativa (aparelho físico na rede da fazenda):
+flutter run --dart-define=TRACEAGRO_API=http://<ip>:4009
 ```
+
+**4009 é a porta combinada** entre `api/src/main.ts`, `app/lib/core/services.dart`
+e `config/dev.json`. O endereço da API é gravado no app **em tempo de
+compilação** (`String.fromEnvironment`) — nenhum `.env` lido depois disso muda
+para onde o binário aponta. Se mudar a porta de um lado, mude nos três lugares
+ou o app vai procurar a API no lugar errado (já aconteceu — foi o motivo desta
+nota existir).
 
 Testes: `api: npm test | npm run test:e2e | npm run vectors` ·
 `app: flutter analyze && flutter test`.

@@ -202,10 +202,45 @@ class _AreasScreenState extends State<AreasScreen> {
             Navigator.of(sheetContext).pop();
             _editBoundary(services, paddock);
           },
+          onViewOnMap: paddock.hasBoundary
+              ? () {
+                  Navigator.of(sheetContext).pop();
+                  _focusPaddockOnMap(services, paddock);
+                }
+              : null,
           onChanged: services.herd.refreshAreas,
         ),
       ),
     );
+  }
+
+  void _focusPaddockOnMap(AppServices services, Paddock paddock) {
+    MapArea? area;
+    for (final candidate in toMapAreas(services.herd.paddocks)) {
+      if (candidate.id == paddock.id) {
+        area = candidate;
+        break;
+      }
+    }
+
+    setState(() {
+      mode = _ViewMode.map;
+      selectedId = null;
+    });
+
+    if (area == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapKey.currentState?.focusArea(
+        area!,
+        padding: EdgeInsets.fromLTRB(
+          TaSpace.xl,
+          MediaQuery.paddingOf(context).top + 136,
+          TaSpace.xl,
+          TaSpace.xl,
+        ),
+      );
+    });
   }
 
   Future<void> _createPaddock(AppServices services) async {

@@ -23,6 +23,7 @@ class AreaDetailSheet extends StatefulWidget {
     required this.services,
     this.onClose,
     this.onEditBoundary,
+    this.onViewOnMap,
     this.onChanged,
   });
 
@@ -30,6 +31,7 @@ class AreaDetailSheet extends StatefulWidget {
   final AppServices services;
   final VoidCallback? onClose;
   final VoidCallback? onEditBoundary;
+  final VoidCallback? onViewOnMap;
   final VoidCallback? onChanged;
 
   @override
@@ -275,14 +277,31 @@ class _AreaDetailSheetState extends State<AreaDetailSheet> {
   Widget _actions() {
     return Column(
       children: [
+        if (widget.onViewOnMap != null) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: widget.onViewOnMap,
+              icon: const Icon(Icons.center_focus_strong_outlined),
+              label: const Text('Ver no mapa'),
+            ),
+          ),
+          const SizedBox(height: TaSpace.sm),
+        ],
         Row(
           children: [
             Expanded(
-              child: FilledButton.icon(
-                onPressed: _moveAnimals,
-                icon: const Icon(Icons.drive_file_move_outlined),
-                label: const Text('Mover animais'),
-              ),
+              child: widget.onViewOnMap == null
+                  ? FilledButton.icon(
+                      onPressed: _moveAnimals,
+                      icon: const Icon(Icons.drive_file_move_outlined),
+                      label: const Text('Mover animais'),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: _moveAnimals,
+                      icon: const Icon(Icons.drive_file_move_outlined),
+                      label: const Text('Mover animais'),
+                    ),
             ),
             if (widget.onEditBoundary != null) ...[
               const SizedBox(width: TaSpace.sm),
