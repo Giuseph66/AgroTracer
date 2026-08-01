@@ -65,7 +65,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
 
-              if (kIsWeb && auth.can('users.manage')) ...[
+              if (kIsWeb && auth.canManageUsers) ...[
                 const SizedBox(height: TaSpace.md),
                 TaCard(
                   onTap: () => Navigator.of(context).push(

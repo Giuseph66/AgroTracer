@@ -96,6 +96,13 @@ void main() {
     expect(session.identity.actorId, 'actor-1');
   });
 
+  test('perfil administrativo antigo mantém a entrada da central visível', () {
+    final session = AuthSession(baseUrl: 'https://base.traceagro.test')
+      ..roles = const ['ADMO'];
+
+    expect(session.canManageUsers, isTrue);
+  });
+
   test('token local expirado não mantém a operação aberta', () async {
     SharedPreferences.setMockInitialValues({
       'traceagro.auth.token': _token(expiresIn: const Duration(minutes: -1)),

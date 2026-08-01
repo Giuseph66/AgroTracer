@@ -33,6 +33,12 @@ class AuthSession extends ChangeNotifier {
   String? get token => accessToken;
   bool can(String permission) => permissions.contains(permission);
 
+  /// Perfis antigos podem estar persistidos sem a lista de permissões que foi
+  /// acrescentada ao RBAC. Eles só liberam a entrada visual; a API continua
+  /// autorizando cada operação administrativa no servidor.
+  bool get canManageUsers =>
+      can('users.manage') || roles.contains('ADMO') || roles.contains('ADMP');
+
   Future<void> restore() async {
     try {
       final prefs = await SharedPreferences.getInstance();
