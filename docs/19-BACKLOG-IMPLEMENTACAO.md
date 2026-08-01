@@ -164,7 +164,7 @@ Catalogado para planejamento, **fora das ondas atuais** por decisão do produto:
 ## B11 — Fila persistente (Drift + SQLCipher)
 
 Pré-requisito técnico das ondas (Doc 8 §2; limitação §6.1 do Doc 18): trocar o
-armazenamento em memória do `Outbox` e do `HerdRepository` por Drift sobre
+armazenamento provisório em SharedPreferences do `Outbox` e o cache em memória do `HerdRepository` por Drift sobre
 SQLite com SQLCipher, preservando **exatamente** a interface atual (`enqueue`,
 `pending`, `adoptServerSequence`, streams). Sequência atribuída na mesma
 transação da inserção. Cache de animais/catálogos vira tabela local com cursor
