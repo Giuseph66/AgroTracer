@@ -8,6 +8,7 @@ export type AuthPrincipal = {
   name: string;
   email: string | null;
   roles: string[];
+  permissions: string[];
 };
 
 export type AuthConfig = {

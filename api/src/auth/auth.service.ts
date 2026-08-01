@@ -7,6 +7,7 @@ import { createHmac, createPublicKey, timingSafeEqual, verify } from 'node:crypt
 import { Pool } from 'pg';
 
 import { PG_POOL } from '../database/database.module';
+import { PolicyService } from './policy.service';
 import { AuthConfig, AuthPrincipal } from './auth.types';
 
 type JwtClaims = Record<string, unknown> & {
@@ -23,12 +24,15 @@ const DEV_PROPERTY_ID = '66666666-6666-4666-8666-666666666666';
 export class AuthService {
   private jwks: { expiresAt: number; keys: Record<string, unknown>[] } | null = null;
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly policy: PolicyService,
+  ) {}
 
   config(): AuthConfig {
     const mode = process.env.AUTH_MODE === 'oidc' ? 'oidc' : 'dev';
     return {
-      required: process.env.AUTH_REQUIRED === 'true',
+      required: true,
       mode,
       issuer: process.env.OIDC_ISSUER ?? null,
     };
@@ -107,6 +111,9 @@ export class AuthService {
       name: row.name,
       email: row.email,
       roles: Array.isArray(row.roles) ? row.roles : [],
+      permissions: this.policy.permissionsFor(
+        Array.isArray(row.roles) ? row.roles : [],
+      ),
     };
   }
 

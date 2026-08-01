@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { AnchorModule } from './anchor/anchor.module';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { AreasModule } from './areas/areas.module';
 import { AnimalsModule } from './animals/animals.module';
@@ -16,6 +17,7 @@ import { ReportsModule } from './reports/reports.module';
   imports: [
     ScheduleModule.forRoot(),
     AuthModule,
+    AdminModule,
     DatabaseModule,
     EventsModule,
     CatalogModule,
