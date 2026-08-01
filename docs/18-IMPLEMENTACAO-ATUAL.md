@@ -25,10 +25,10 @@ Resultados de teste na data de referência:
 | Suíte | Resultado |
 |-------|-----------|
 | `api npm test` (canonicalização) | 5/5 |
-| `api npm run test:e2e` (ingestão contra Postgres real) | 11/11 |
-| `app flutter test` (canonical, outbox, widgets) | 31/31 |
+| `api npm run test:e2e` (ingestão, autenticação e fluxo de campo contra Postgres real) | 16/16 |
+| `app flutter test` (canonical, outbox, widgets e cobertura de módulos) | 50/50 |
 | `flutter analyze` | limpo |
-| Playwright ponta a ponta (pesagem → âncora → prova na tela) | verificado, capturas em `design-review/` |
+| Playwright visível ponta a ponta (início, leitura, pesagem, vacinação, nascimento, embarque, sincronização, ajustes, animais, CSV e dossiê) | verificado; captura final em `output/playwright/final-home.png` |
 
 ## 2. Componentes
 
@@ -52,6 +52,10 @@ Resultados de teste na data de referência:
     `core.event` (transição PENDING_BLOCKCHAIN → CONFIRMED_ON_BLOCKCHAIN).
   - `005_gmd_range.sql` — alarga `gmd_kg_day` para numeric(7,3) (defesa em
     profundidade do bug de GMD, ver §5).
+  - `006_field_operations.sql` — catálogo veterinário, piquetes PostGIS,
+    projeção de localização e embarques/recebimentos.
+  - `007_access_control.sql` — vínculos de papel com vigência e seed OPER,
+    PROD e VETE do laboratório.
 
 ### 2.2 API (NestJS 11 + Fastify, porta 3999)
 
@@ -66,6 +70,11 @@ Estrutura em `api/src/`:
 | `events/events.service.ts` | Pipeline de ingestão (Doc 9 §4.4) — ordem das etapas documentada no código |
 | `events/events.repository.ts` | SQL: dedup, estado do animal, R3, inserção transacional, projeções (peso/GMD/sanidade/identificador), consultas timeline/animais, mapa eventType→função de chaincode |
 | `events/events.controller.ts` | `POST /v1/events`, `POST /v1/sync/batches`, `GET /v1/sync/conflicts` |
+| `catalog/catalog.controller.ts` | `GET /v1/catalog/vet-products` |
+| `areas/areas.controller.ts` | Piquetes, geometrias e animais por área |
+| `shipments/shipments.controller.ts` | Lista/detalhe de expedições, conferência e GTA |
+| `auth/auth.controller.ts` | Configuração, login de desenvolvimento e identidade autenticada; guard JWT global |
+| `reports/reports.controller.ts` | `GET /v1/reports/animals.csv`, `GET /v1/reports/animals/:id.json` e `.pdf` — inventário e dossiê verificável |
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
 | `anchor/fabric.gateway.ts` | Porta de saída Fabric. **Simulado** (`FABRIC_MODE != real`): latência + TxID derivado do hash + endorsingOrgs fixos. Trocar por `@hyperledger/fabric-gateway` na Fase 4 sem tocar no resto |
 | `anchor/anchor.worker.ts` | `@Interval(3000)`: PENDING → SUBMITTED → CONFIRMED; recupera SUBMITTED travado >30s; máx. 24 tentativas; `FOR UPDATE SKIP LOCKED` (multi-réplica seguro) |
@@ -79,7 +88,8 @@ Reenvio de eventId conhecido ⇒ veredicto original + `duplicate: true`.
 Regras de negócio ativas no pipeline: R3 (IDENTIFIER_TAKEN), R14
 (SUBJECT_CLOSED), R22/R23 (dedup/idempotência), R27 (ordem por deviceSequence),
 faixa de peso 15–1500 kg (ERR-PES-001), hash obrigatório (ERR-EVT-HASH),
-assinatura presente (ERR-EVT-SIGNATURE — ver limitação §6.2), animal inexistente
+assinatura presente — ou P-256 estrita quando `EVENT_SIGNATURE_MODE=ecdsa` —
+(ERR-EVT-SIGNATURE), animal inexistente
 (SUBJECT_UNKNOWN vira conflito, não erro).
 
 Projeções calculadas **pelo servidor** (nunca aceitas do cliente): peso atual,
@@ -97,18 +107,21 @@ Estrutura em `app/lib/`:
 | `core/widgets/ear_tag.dart` | Componente-assinatura: brinco desenhado em CustomPainter (3 tamanhos) |
 | `core/widgets/common.dart` | SyncBadge (estados Doc 8 §5), SectionLabel, TaCard, ConnectivityPill, formatadores de data |
 | `core/sync/canonical.dart` | Canonicalização + SHA-256 em Dart — **gêmea byte a byte** de `api/src/events/canonical.ts` |
-| `core/sync/event_envelope.dart` | Envelope Doc 5 §1; `DevIdentity` (fixture do laboratório, ver §4); assinatura ainda stub |
-| `core/sync/outbox.dart` | Fila de eventos: sequência monotônica, estados, `adoptServerSequence()` (nunca retrocede), stream de mudanças. **Em memória — persistência Drift é backlog B11** |
+| `core/sync/event_envelope.dart` | Envelope Doc 5 §1; identidade da sessão com fallback `DevIdentity`; assinatura do app ainda stub |
+| `core/sync/outbox.dart` | Fila de eventos: sequência monotônica, estados, restauração local via SharedPreferences, `adoptServerSequence()` e stream de mudanças. **Drift/SQLCipher é backlog B11** |
 | `core/sync/sync_service.dart` | Push em lote (500), backoff 5s→15min, ping de conectividade, adoção de sequência no boot, repescagem de provas de âncora a cada 8s, clock skew via header Date |
-| `core/services.dart` | `AppServices` + InheritedWidget `Services`; `apiBaseUrl` via `--dart-define=TRACEAGRO_API` (padrão localhost:3999) |
-| `data/api_client.dart` | Leitura: animais e timeline; conversão wire→domínio; formatação de RFID/SISBOV para exibição |
-| `data/herd_repository.dart` | Rebanho em memória alimentado pela API; `TimelineResult` distingue vazio de inacessível; **zero dados de exemplo** |
+| `core/auth/auth_session.dart` | Bootstrap, login dev, validação `/auth/me`, persistência de token/identidade e logout |
+| `core/services.dart` | `AppServices` + InheritedWidget `Services`; sessão, identidade, sync e `apiBaseUrl` via `--dart-define=TRACEAGRO_API` |
+| `data/api_client.dart` | Leitura: animais, timeline, catálogo, áreas, embarques, genealogia, inventário CSV e dossiê; conversão wire→domínio |
+| `data/herd_repository.dart` | Rebanho/cache local persistido via SharedPreferences e atualizado pela API; `TimelineResult` distingue vazio de inacessível; **zero dados de exemplo** |
 | `domain/models.dart` | Animal, TraceEvent, SyncState (Doc 8), LifecycleStatus, EventKind com `wireName` |
 | `features/home/` | Início: header pasture, resumo de fila, grade de ações, "Hoje na fazenda" |
 | `features/read/` | Leitura RFID **simulada** (3 estados: aguardando/identificado/desconhecido) |
 | `features/weighing/` | UC-02 pesagem no brete: lê→estabiliza→confirma→libera; alerta de variação >30%; entrada manual com flag; fita da sessão com estado de sync por animal |
 | `features/animal/` | Ficha: brinco grande, derivados, banner de carência, linha do tempo com SyncBadge por evento |
-| `features/animals/` | Lista com busca por visual/RFID/SISBOV/lote; estados vazios distintos (carregando/busca/sem rede/sem cadastro) |
+| `features/animals/` | Lista com filtros por status/sexo/idade/piquete, cadastro manual, exportação CSV e estados vazios distintos |
+| `features/areas/` | Piquetes, prévia de polígono, consulta sanitária por área e evento PADDOCK_CHANGE |
+| `features/shipment/` | Expedição, conferência de chegada, divergência e GTA manual |
 | `features/sync/` | Central: card de conexão, conflitos ("precisam de você"), fila de envio com prova |
 | `features/settings/` | Servidor, estado, última sync, clock skew, identidade do aparelho, sync manual |
 
@@ -143,8 +156,9 @@ Semeada na migração 002 e fixa em `app/lib/core/sync/event_envelope.dart`
 | Dispositivo Field Terminal A1 | `44444444-4444-4444-8444-444444444444` |
 | Animais 4127/4088/3950/4201 | `11111111-1111-4111-8111-0000000041XX` |
 
-O item B1 do backlog (login) substitui `DevIdentity` por sessão real — é a
-primeira dependência de quase tudo.
+O login de desenvolvimento já substitui a identidade fixa quando a API exige
+sessão. A configuração OIDC/JWKS está disponível no servidor; o fluxo PKCE
+nativo e o enrollment de dispositivos continuam como evolução de produção.
 
 ## 5. Bugs encontrados e corrigidos (histórico de decisão)
 
@@ -159,11 +173,17 @@ Nenhum bug conhecido em aberto na data de referência.
 
 ## 6. Limitações conhecidas (não são bugs — são backlog)
 
-1. **Fila em memória** — eventos pendentes se perdem ao fechar o app. Backlog B11 (Drift+SQLCipher). É a maior lacuna para o offline real.
-2. **Assinatura stub** — `signature: 'sig-stub-dev'`; servidor valida apenas presença. Backlog B12 (ECDSA P-256 no Keystore + verificação R26).
+1. **Persistência provisória da fila** — o `Outbox` restaura pendências via SharedPreferences, mas ainda não tem banco transacional/criptografado. Backlog B11 (Drift+SQLCipher) continua sendo a evolução para o offline de produção.
+2. **Assinatura do app em laboratório** — `signature: 'sig-stub-dev'`; a API já
+   valida P-256 no modo `EVENT_SIGNATURE_MODE=ecdsa` quando o dispositivo possui
+   `public_key`. O enrollment e a assinatura não exportável no Android Keystore
+   continuam no backlog B12.
 3. **Fabric simulado** — gateway gera TxID localmente. Rede real é Fase 4 (Doc 10). O contrato acima do gateway não muda.
-4. **Sem autenticação** — API aberta; identidade vem do envelope. Backlog B1.
+4. **Sessão em dois modos** — o guard JWT e a sessão de desenvolvimento estão ativos; OIDC/JWKS pode ser habilitado por ambiente. O app ainda precisa do fluxo PKCE nativo e o escopo ABAC amplo continua evolução de produção.
 5. **Leitura RFID simulada** — sorteia animal do rebanho. Backlog B10 (hardware real, prioridade do usuário após o backlog atual).
 6. **Sem runner de migração** — migrações novas aplicadas via psql manual. Corrigir junto de B1.
-7. **Eventos suportados na prática** — WEIGHING de ponta a ponta; LINK_IDENTIFIER no pipeline; demais tipos validados no envelope mas sem tela nem projeção específica.
+7. **Eventos suportados na prática** — pesagem, vacinação, nascimento, reidentificação, áreas/piquetes, embarque/recebimento exato ou com divergência, GTA e sincronização têm telas e projeções; demais tipos continuam dependentes de telas ou integrações específicas.
 8. **Pull incremental não implementado** — app baixa lista completa de animais a cada refresh; cursores do Doc 8 §11 pendentes.
+9. **Exportação verificável em primeira versão** — o dossiê JSON/PDF já é gerado
+   pela API e exibido na ficha; geração assíncrona, URL temporária, registro
+   dedicado de auditoria e compartilhamento nativo ainda são evolução de B9.

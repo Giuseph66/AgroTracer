@@ -11,9 +11,9 @@ está implementado.
 
 | Parte | O que existe | O que falta |
 |-------|--------------|-------------|
-| App Flutter | Design system, 6 telas, fila de eventos, hash canônico, sincronização, fluxo de pesagem (UC-02) | Banco local Drift/SQLCipher, assinatura ECDSA, RFID/balança reais, vacinação e embarque |
-| API NestJS | Ingestão idempotente com pipeline de validação, persistência Postgres, projeções, âncora assíncrona | OIDC/RBAC, documentos, adaptadores externos, OpenAPI publicado |
-| Banco | Schema núcleo + projeções, append-only por grants | Particionamento, PostGIS em uso, retenção |
+| App Flutter | Design system, fila/cache local persistente, sessão, hash canônico, sincronização, pesagem, vacinação, nascimento, embarque, GTA, áreas, genealogia e exportação CSV/dossiê | Drift/SQLCipher, assinatura ECDSA no app/Keystore, RFID/balança reais, mapa offline e PKCE nativo |
+| API NestJS | Ingestão idempotente, validação, RBAC sanitário temporal, guard JWT, modo dev e OIDC/JWKS configurável, projeções, catálogo, piquetes PostGIS, embarques/recebimentos, genealogia, CSV e dossiê verificável; ECDSA P-256 estrita por configuração | Enrollment PKCE completo, documentos, adaptadores externos, OpenAPI publicado |
+| Banco | Schema núcleo + projeções, PostGIS, catálogo, piquetes e embarques, append-only por grants | Particionamento e retenção |
 | Blockchain | Worker de ancoragem com estados e recuperação; gateway simulado | Rede Fabric real, chaincode Go, políticas de endosso |
 
 O gateway Fabric é **simulado** (`FABRIC_MODE != real`): ele exercita todo o
@@ -48,7 +48,7 @@ npm run test:e2e   # ingestão contra API + Postgres reais (precisa dos dois no 
 npm run vectors    # regenera test/vectors.json
 
 cd app
-flutter test       # 31 testes: canonicalização, fila de eventos, telas
+flutter test       # 50 testes: canonicalização, fila de eventos, módulos e telas
 flutter analyze
 ```
 
@@ -75,6 +75,9 @@ Três propriedades que o código sustenta e os testes verificam:
 - **Idempotência**: reenviar o mesmo `eventId` devolve o veredicto original, nunca cria um segundo registro (R22/R23).
 - **Append-only**: o papel de aplicação não tem `UPDATE`/`DELETE` em `core.event`; a única transição permitida (confirmar âncora) passa por função `SECURITY DEFINER` (migração 004).
 - **Falha externa não apaga evento interno**: a rede Fabric fora do ar mantém a âncora pendente; o evento aceito continua válido (R30).
+- **Assinatura configurável**: `EVENT_SIGNATURE_MODE=ecdsa` valida assinatura P-256
+  sobre a mensagem canônica do evento; o modo `legacy` permanece disponível para
+  fixtures de desenvolvimento enquanto o enrolamento no Keystore não entra.
 
 ## Estrutura
 
