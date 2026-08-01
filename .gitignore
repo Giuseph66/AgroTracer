@@ -63,6 +63,8 @@ app/ios/Flutter/flutter_export_environment.sh
 .windsurf/
 .github-copilot/
 .playwright-mcp/
+.playwright-cli/
+output/playwright/
 
 # ------------------------------------------------------------------- IDE
 .idea/
