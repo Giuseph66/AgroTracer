@@ -123,10 +123,15 @@ class AreaLabelsLayer extends StatelessWidget {
   }
 
   Size _labelSize(MapArea area) {
-    // Largura estimada pelo número de caracteres do nome: medir texto de
-    // verdade exigiria layout por rótulo, e a estimativa basta para decidir
-    // colisão nesta escala.
-    final width = (area.name.length * 7.5 + 32).clamp(72.0, 150.0);
+    // Largura estimada pela maior das duas linhas — nome e medida. Medir texto
+    // de verdade exigiria layout por rótulo, e a estimativa basta para decidir
+    // colisão nesta escala; o texto ainda encolhe se a conta ficar curta.
+    final measure = area.animalCount > 0
+        ? '${area.formattedArea} · ${area.animalCount}'
+        : area.formattedArea;
+    final characters =
+        area.name.length > measure.length ? area.name.length : measure.length;
+    final width = (characters * 7.5 + 40).clamp(80.0, 160.0);
     return Size(width, 42);
   }
 }
@@ -183,14 +188,21 @@ class _AreaLabel extends StatelessWidget {
               children: [
                 Icon(theme.iconFor(area.healthStatus), size: 11, color: stroke),
                 const SizedBox(width: 3),
-                Text(
-                  area.animalCount > 0
-                      ? '${area.formattedArea} · ${area.animalCount}'
-                      : area.formattedArea,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.inkSoft,
-                    height: 1.1,
+                // A largura do rótulo é estimada pelo nome; quando a medida
+                // sai maior que a estimativa, o texto encolhe em vez de
+                // estourar a caixa com a faixa de overflow.
+                Flexible(
+                  child: Text(
+                    area.animalCount > 0
+                        ? '${area.formattedArea} · ${area.animalCount}'
+                        : area.formattedArea,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.inkSoft,
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ],

@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Componentes de mapa: pacote local, autocontido (ver packages/traceagro_map).
+  traceagro_map:
+    path: packages/traceagro_map
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -39,10 +42,14 @@ dependencies:
   http: ^1.6.0
   crypto: ^3.0.7
   uuid: ^4.6.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Usado só nos testes de layout do mapa, que inspecionam as camadas do
+  # flutter_map diretamente.
+  flutter_map: ^7.0.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

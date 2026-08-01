@@ -428,9 +428,11 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    // Botão desativado precisa continuar legível: sumir com o rótulo faz o
+    // operador achar que a ação não existe, em vez de estar indisponível agora.
     final color = enabled
         ? theme.paperInk
-        : theme.paperInk.withValues(alpha: 0.35);
+        : theme.paperInk.withValues(alpha: 0.55);
 
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
