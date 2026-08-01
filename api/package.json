@@ -5,8 +5,8 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/main.js",
-    "dev": "ts-node src/main.ts",
+    "start": "node --env-file-if-exists=.env dist/main.js",
+    "dev": "node --env-file-if-exists=.env -r ts-node/register src/main.ts",
     "test": "node --test test/canonical.test.js",
     "test:e2e": "node --test --test-concurrency=1 test/*.e2e.test.js",
     "vectors": "node test/generate-vectors.js"

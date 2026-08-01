@@ -32,7 +32,12 @@ async function bootstrap() {
     allowedHeaders: ['content-type', 'authorization', 'idempotency-key'],
   });
 
-  const port = Number(process.env.PORT ?? 3000);
+  // 4009 é a porta de desenvolvimento combinada do projeto: o mesmo número
+  // está no default do app (`app/lib/core/services.dart`) e em
+  // `config/dev.json`. Mudar aqui sem mudar lá faz o app procurar a API no
+  // lugar errado — foi o que aconteceu quando havia três valores diferentes
+  // espalhados. Sobrescreva com a variável PORT quando precisar de outra.
+  const port = Number(process.env.PORT ?? 4009);
   await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`TraceAgro API on :${port} (v1)`);
