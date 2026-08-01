@@ -16,11 +16,13 @@ dependencies:
   # dispensar chave paga e permitir cache de tiles para uso offline — requisito
   # de operação em propriedade rural (Doc 19, questão Q1).
   flutter_map: ^7.0.2
+  geolocator: ^14.0.3
   latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  geolocator_platform_interface: ^4.2.8
 
 flutter:

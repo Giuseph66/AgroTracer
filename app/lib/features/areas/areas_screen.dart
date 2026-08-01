@@ -30,6 +30,7 @@ class _AreasScreenState extends State<AreasScreen> {
   _ViewMode mode = _ViewMode.map;
   String? selectedId;
   TileSource tiles = TileSource.satellite;
+  bool locating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +103,8 @@ class _AreasScreenState extends State<AreasScreen> {
             onFit: areas.isEmpty
                 ? null
                 : () => _mapKey.currentState?.fitAllAreas(),
+            onLocate: locating ? null : _locateMe,
+            locating: locating,
             onCreate: () => _createPaddock(services),
           ),
         ),
@@ -243,6 +246,22 @@ class _AreasScreenState extends State<AreasScreen> {
     });
   }
 
+  /// Centraliza o mapa na posição atual do operador. A câmera só se move em
+  /// caso de sucesso — falha (GPS desligado, permissão negada) não mexe no
+  /// mapa, só avisa por que não deu.
+  Future<void> _locateMe() async {
+    setState(() => locating = true);
+    final result = await _mapKey.currentState?.locateUser();
+    if (!mounted) return;
+    setState(() => locating = false);
+
+    if (result is LocateFailure && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+    }
+  }
+
   Future<void> _createPaddock(AppServices services) async {
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -285,6 +304,8 @@ class _Header extends StatelessWidget {
     required this.onCreate,
     this.onToggleTiles,
     this.onFit,
+    this.onLocate,
+    this.locating = false,
   });
 
   final List<Paddock> paddocks;
@@ -294,6 +315,11 @@ class _Header extends StatelessWidget {
   final VoidCallback onCreate;
   final VoidCallback? onToggleTiles;
   final VoidCallback? onFit;
+
+  /// Centraliza o mapa na posição atual do operador. Ausente na visão em
+  /// lista, onde não há câmera para mover.
+  final VoidCallback? onLocate;
+  final bool locating;
 
   @override
   Widget build(BuildContext context) {
@@ -355,6 +381,22 @@ class _Header extends StatelessWidget {
                   icon: const Icon(Icons.fit_screen_outlined,
                       color: TaColors.paperInk),
                   tooltip: 'Enquadrar tudo',
+                ),
+              if (onLocate != null || locating)
+                IconButton(
+                  onPressed: onLocate,
+                  icon: locating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: TaColors.tagYellow,
+                          ),
+                        )
+                      : const Icon(Icons.my_location,
+                          color: TaColors.paperInk),
+                  tooltip: 'Ir para minha localização',
                 ),
               IconButton(
                 onPressed: onCreate,

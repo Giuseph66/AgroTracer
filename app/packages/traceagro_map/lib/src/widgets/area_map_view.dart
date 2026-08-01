@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
 import '../geo/geodesy.dart';
+import '../location/user_location.dart';
 import '../models/geo_point.dart';
 import '../models/map_area.dart';
 import '../theme/map_theme.dart';
 import '../tiles/tile_source.dart';
 import 'area_labels_layer.dart';
+import 'user_location_layer.dart';
+
+/// Zoom usado ao centralizar na localização do operador — perto o bastante
+/// para reconhecer o piquete em que está, sem já estar tão próximo que perca
+/// o contorno inteiro de vista.
+const double _locateZoom = 17;
 
 /// Mapa da propriedade: mostra as áreas com a cor da situação sanitária e
 /// deixa selecionar uma delas.
@@ -50,6 +57,41 @@ class AreaMapView extends StatefulWidget {
 
 class AreaMapViewState extends State<AreaMapView> {
   final MapController _controller = MapController();
+
+  GeoPoint? _userLocation;
+  double? _userAccuracyMeters;
+  bool _locating = false;
+
+  /// Resolve a posição do operador e centraliza o mapa nela. Sempre retorna
+  /// um [LocateResult]: sucesso move a câmera e desenha o marcador; falha não
+  /// mexe no mapa, e devolve a mensagem para a tela decidir como avisar (o
+  /// pacote não assume que existe um Scaffold/SnackBar disponível).
+  Future<LocateResult> locateUser() async {
+    if (_locating) {
+      return const LocateFailure(
+        LocateFailureKind.unknown,
+        'Já estou procurando sua localização.',
+      );
+    }
+
+    setState(() => _locating = true);
+    final result = await resolveUserLocation();
+
+    if (!mounted) return result;
+    setState(() => _locating = false);
+
+    if (result is LocateSuccess) {
+      setState(() {
+        _userLocation = result.point;
+        _userAccuracyMeters = result.accuracyMeters;
+      });
+      _controller.move(result.point.toLatLng(), _locateZoom);
+    }
+
+    return result;
+  }
+
+  bool get isLocating => _locating;
 
   /// Enquadra todas as áreas. Público para o app poder chamar depois de
   /// carregar dados novos.
@@ -159,6 +201,12 @@ class AreaMapViewState extends State<AreaMapView> {
               areas: widget.areas,
               selectedAreaId: widget.selectedAreaId,
               obstacles: widget.markers,
+            ),
+          if (_userLocation != null)
+            UserLocationLayer(
+              position: _userLocation!,
+              accuracyMeters: _userAccuracyMeters,
+              theme: theme,
             ),
         ],
       ),
