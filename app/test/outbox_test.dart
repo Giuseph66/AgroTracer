@@ -1,9 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:traceagro_app/core/sync/outbox.dart';
+import 'package:traceagro_app/core/sync/event_envelope.dart';
 import 'package:traceagro_app/domain/models.dart';
 
 void main() {
   group('Outbox', () {
+    test('persiste eventos pendentes e restaura após reabrir', () async {
+      SharedPreferences.setMockInitialValues({});
+      final first = Outbox();
+      final created = first.enqueue(
+        kind: EventKind.vaccination,
+        subjectId: 'animal-1',
+        subjectLabel: 'Brinco 4127',
+        payload: {'productRef': 'AFTOSA-BIV'},
+      );
+      await first.flush();
+
+      final reopened = Outbox();
+      await reopened.restore();
+      expect(reopened.pending.single.eventId, created.eventId);
+      expect(reopened.currentSequence, created.envelope.deviceSequence);
+      reopened.dispose();
+      first.dispose();
+    });
+
     test('sequência do dispositivo é monotônica e nunca se repete', () {
       final outbox = Outbox();
       final a = outbox.enqueue(
@@ -154,6 +175,29 @@ void main() {
       final sequences =
           outbox.pending.map((e) => e.envelope.deviceSequence).toList();
       expect(sequences, [1, 2, 3, 4, 5]);
+    });
+
+    test('sessão autenticada propaga identidade para eventos futuros', () {
+      final outbox = Outbox();
+      outbox.setIdentity(const EventIdentity(
+        organizationId: '22222222-2222-4222-8222-222222222222',
+        actorId: '33333333-3333-4333-8333-000000000002',
+        deviceId: '44444444-4444-4444-8444-444444444444',
+        propertyId: '66666666-6666-4666-8666-666666666666',
+        appVersion: '0.2.0',
+      ));
+
+      final event = outbox.enqueue(
+        kind: EventKind.diagnosis,
+        subjectId: 'animal-1',
+        subjectLabel: 'Brinco 4127',
+        payload: {'diagnosis': 'observação'},
+      );
+
+      expect(event.envelope.actorId,
+          '33333333-3333-4333-8333-000000000002');
+      expect(event.envelope.toJson()['organizationId'],
+          '22222222-2222-4222-8222-222222222222');
     });
   });
 }

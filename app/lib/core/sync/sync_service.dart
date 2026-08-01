@@ -32,11 +32,12 @@ enum ConnectivityState { offline, online, syncing }
 /// A decisão vinculante é sempre do servidor: o app antecipa validações para a
 /// UX, mas quem aceita, rejeita ou marca conflito é a API.
 class SyncService extends ChangeNotifier {
-  SyncService({required this.outbox, required this.baseUrl, http.Client? client})
+  SyncService({required this.outbox, required this.baseUrl, this.tokenProvider, http.Client? client})
       : _client = client ?? http.Client();
 
   final Outbox outbox;
   final String baseUrl;
+  final String? Function()? tokenProvider;
   final http.Client _client;
 
   ConnectivityState _connectivity = ConnectivityState.offline;
@@ -82,8 +83,10 @@ class SyncService extends ChangeNotifier {
   Future<void> adoptServerSequence() async {
     try {
       final res = await _client
-          .get(Uri.parse(
-              '$baseUrl/v1/devices/${DevIdentity.deviceId}/sync-state'))
+          .get(
+            Uri.parse('$baseUrl/v1/devices/${outbox.identity.deviceId}/sync-state'),
+            headers: _headers,
+          )
           .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return;
       final state = jsonDecode(res.body) as Map<String, Object?>;
@@ -106,7 +109,7 @@ class SyncService extends ChangeNotifier {
   Future<void> ping() async {
     try {
       final res = await _client
-          .get(Uri.parse('$baseUrl/v1/anchors'))
+          .get(Uri.parse('$baseUrl/v1/anchors'), headers: _headers)
           .timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         _readClockSkew(res.headers);
@@ -151,7 +154,7 @@ class SyncService extends ChangeNotifier {
       final res = await _client
           .post(
             Uri.parse('$baseUrl/v1/sync/batches'),
-            headers: const {'content-type': 'application/json'},
+            headers: {'content-type': 'application/json', ..._headers},
             body: body,
           )
           .timeout(const Duration(seconds: 20));
@@ -203,7 +206,10 @@ class SyncService extends ChangeNotifier {
       }
       try {
         final res = await _client
-            .get(Uri.parse('$baseUrl/v1/anchors/${entry.eventId}/proof'))
+            .get(
+              Uri.parse('$baseUrl/v1/anchors/${entry.eventId}/proof'),
+              headers: _headers,
+            )
             .timeout(const Duration(seconds: 10));
         if (res.statusCode != 200) continue;
         final anchor = jsonDecode(res.body) as Map<String, Object?>;
@@ -223,6 +229,13 @@ class SyncService extends ChangeNotifier {
     final serverTime = DateTime.tryParse(dateHeader);
     if (serverTime == null) return;
     _clockSkewMs = DateTime.now().toUtc().difference(serverTime).inMilliseconds;
+  }
+
+  Map<String, String> get _headers {
+    final token = tokenProvider?.call();
+    return token == null || token.isEmpty
+        ? const {}
+        : {'authorization': 'Bearer $token'};
   }
 
   Duration get nextRetryDelay =>

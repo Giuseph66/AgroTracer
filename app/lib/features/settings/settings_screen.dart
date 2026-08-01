@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services.dart';
-import '../../core/sync/event_envelope.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
@@ -26,26 +25,67 @@ class SettingsScreen extends StatelessWidget {
             children: [
               Text('Ajustes', style: t.displayMedium),
               const SizedBox(height: TaSpace.lg),
+              if (services.auth.token != null) ...[
+                const SectionLabel('Sessão'),
+                const SizedBox(height: TaSpace.sm),
+                TaCard(
+                  padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
+                  child: Column(
+                    children: [
+                      _row(
+                        context,
+                        'Operador',
+                        '${services.auth.identity.actorName} · ${services.auth.identity.actorId}',
+                      ),
+                      const Divider(),
+                      _row(
+                        context,
+                        'Organização',
+                        services.auth.identity.organizationId,
+                      ),
+                      const Divider(),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: () => services.auth.logout(),
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Encerrar sessão'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: TaSpace.lg),
+              ],
               const SectionLabel('Conexão'),
               const SizedBox(height: TaSpace.sm),
               TaCard(
                 padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
-                child: Column(children: [
-                  _row(context, 'Servidor', apiBaseUrl),
-                  const Divider(),
-                  _row(context, 'Estado', _connectivityLabel(sync.connectivity)),
-                  const Divider(),
-                  _row(
-                    context,
-                    'Última sincronização',
-                    sync.lastSyncAt == null
-                        ? 'ainda não sincronizou'
-                        : dayHourFmt.format(sync.lastSyncAt!),
-                  ),
-                  const Divider(),
-                  _row(context, 'Desvio de relógio',
-                      '${sync.clockSkewMs} ms em relação ao servidor'),
-                ]),
+                child: Column(
+                  children: [
+                    _row(context, 'Servidor', apiBaseUrl),
+                    const Divider(),
+                    _row(
+                      context,
+                      'Estado',
+                      _connectivityLabel(sync.connectivity),
+                    ),
+                    const Divider(),
+                    _row(
+                      context,
+                      'Última sincronização',
+                      sync.lastSyncAt == null
+                          ? 'ainda não sincronizou'
+                          : dayHourFmt.format(sync.lastSyncAt!),
+                    ),
+                    const Divider(),
+                    _row(
+                      context,
+                      'Desvio de relógio',
+                      '${sync.clockSkewMs} ms em relação ao servidor',
+                    ),
+                  ],
+                ),
               ),
               if (sync.lastError != null) ...[
                 const SizedBox(height: TaSpace.sm),
@@ -66,15 +106,25 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: TaSpace.sm),
               TaCard(
                 padding: const EdgeInsets.symmetric(horizontal: TaSpace.md),
-                child: Column(children: [
-                  _row(context, 'Dispositivo', DevIdentity.deviceId),
-                  const Divider(),
-                  _row(context, 'Versão do app', DevIdentity.appVersion),
-                  const Divider(),
-                  _row(context, 'Leitor', 'AT-880 · Bluetooth'),
-                  const Divider(),
-                  _row(context, 'Balança', 'AT-2 · serial'),
-                ]),
+                child: Column(
+                  children: [
+                    _row(
+                      context,
+                      'Dispositivo',
+                      services.auth.identity.deviceId,
+                    ),
+                    const Divider(),
+                    _row(
+                      context,
+                      'Versão do app',
+                      services.auth.identity.appVersion,
+                    ),
+                    const Divider(),
+                    _row(context, 'Leitor', 'AT-880 · Bluetooth'),
+                    const Divider(),
+                    _row(context, 'Balança', 'AT-2 · serial'),
+                  ],
+                ),
               ),
               const SizedBox(height: TaSpace.md),
               SizedBox(
@@ -110,8 +160,11 @@ class SettingsScreen extends StatelessWidget {
         children: [
           SizedBox(width: 140, child: Text(label, style: t.bodyMedium)),
           Expanded(
-            child: Text(value,
-                style: t.labelMedium, textAlign: TextAlign.right),
+            child: Text(
+              value,
+              style: t.labelMedium,
+              textAlign: TextAlign.right,
+            ),
           ),
         ],
       ),
@@ -119,8 +172,8 @@ class SettingsScreen extends StatelessWidget {
   }
 
   String _connectivityLabel(ConnectivityState s) => switch (s) {
-        ConnectivityState.online => 'conectado',
-        ConnectivityState.syncing => 'enviando',
-        ConnectivityState.offline => 'sem conexão — registros seguem locais',
-      };
+    ConnectivityState.online => 'conectado',
+    ConnectivityState.syncing => 'enviando',
+    ConnectivityState.offline => 'sem conexão — registros seguem locais',
+  };
 }

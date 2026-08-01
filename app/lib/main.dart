@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/services.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/tokens.dart';
+import 'features/auth/login_screen.dart';
 import 'features/animals/animals_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/read/read_screen.dart';
@@ -46,8 +47,32 @@ class _TraceAgroAppState extends State<TraceAgroApp> {
         title: 'TraceAgro',
         debugShowCheckedModeBanner: false,
         theme: buildTaTheme(),
-        home: const AppShell(),
+        home: const AuthGate(),
       ),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Services.of(context).auth;
+    return ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) {
+        if (!auth.initialized) {
+          return const Scaffold(
+            backgroundColor: TaColors.paperDim,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (auth.requiresLogin && !auth.isAuthenticated) {
+          return const LoginScreen();
+        }
+        return const AppShell();
+      },
     );
   }
 }
