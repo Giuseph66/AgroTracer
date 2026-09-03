@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/hardware/rfid_hardware_capture.dart';
 import '../../core/services.dart';
 import '../../core/sync/outbox.dart';
 import '../../core/theme/tokens.dart';
@@ -23,7 +24,8 @@ class WeighingScreen extends StatefulWidget {
 
 enum _Step { waitingTag, waitingScale, ready }
 
-class _WeighingScreenState extends State<WeighingScreen> {
+class _WeighingScreenState extends State<WeighingScreen>
+    with RfidHardwareCapture {
   final _random = Random();
   final _manualController = TextEditingController();
 
@@ -38,19 +40,40 @@ class _WeighingScreenState extends State<WeighingScreen> {
   final List<OutboxEntry> session = [];
 
   @override
+  bool get rfidCapturePaused => step != _Step.waitingTag;
+
+  @override
   void dispose() {
     _timer?.cancel();
     _manualController.dispose();
+    disposeRfidCapture();
     super.dispose();
   }
 
-  void _readTag() {
-    final herd = Services.of(context).herd;
-    final pool = herd.animals;
-    if (pool.isEmpty) return;
+  /// Leitor USB físico: só reage enquanto aguarda brinco (Doc 8 §10);
+  /// brinco desconhecido no brete não interrompe a fila — só avisa, porque
+  /// o animal já está na balança.
+  @override
+  void onRfidScan(String code) {
+    final match = Services.of(context).herd.byRfid(code);
+    if (match == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Brinco não encontrado: $code')),
+      );
+      return;
+    }
+    _startWeighing(match);
+  }
 
+  void _readTag() {
+    final pool = Services.of(context).herd.animals;
+    if (pool.isEmpty) return;
+    _startWeighing(pool[_random.nextInt(pool.length)]);
+  }
+
+  void _startWeighing(Animal a) {
     setState(() {
-      animal = pool[_random.nextInt(pool.length)];
+      animal = a;
       step = _Step.waitingScale;
       weightKg = null;
       scaleStable = false;
@@ -62,10 +85,10 @@ class _WeighingScreenState extends State<WeighingScreen> {
     _timer?.cancel();
     _timer = Timer(const Duration(milliseconds: 1100), () {
       if (!mounted) return;
-      final base = animal!.lastWeightKg;
       setState(() {
-        weightKg =
-            (base + _random.nextDouble() * 12 - 2).clamp(15, 1500).toDouble();
+        weightKg = (a.lastWeightKg + _random.nextDouble() * 12 - 2)
+            .clamp(15, 1500)
+            .toDouble();
         scaleStable = true;
         step = _Step.ready;
       });
@@ -115,6 +138,7 @@ class _WeighingScreenState extends State<WeighingScreen> {
       weightKg = null;
       _manualController.clear();
     });
+    requestRfidFocus();
   }
 
   @override
@@ -138,11 +162,16 @@ class _WeighingScreenState extends State<WeighingScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(child: _buildStage(context)),
-            _SessionStrip(entries: session),
-          ],
+        child: Focus(
+          focusNode: rfidFocusNode,
+          autofocus: true,
+          onKeyEvent: onRfidKeyEvent,
+          child: Column(
+            children: [
+              Expanded(child: _buildStage(context)),
+              _SessionStrip(entries: session),
+            ],
+          ),
         ),
       ),
     );
@@ -226,11 +255,14 @@ class _WeighingScreenState extends State<WeighingScreen> {
           const SizedBox(height: TaSpace.sm),
           _manualRow(context),
           TextButton(
-            onPressed: () => setState(() {
-              step = _Step.waitingTag;
-              animal = null;
-              weightKg = null;
-            }),
+            onPressed: () {
+              setState(() {
+                step = _Step.waitingTag;
+                animal = null;
+                weightKg = null;
+              });
+              requestRfidFocus();
+            },
             child: Text('Descartar animal',
                 style: t.bodySmall!.copyWith(color: TaColors.paperInkSoft)),
           ),

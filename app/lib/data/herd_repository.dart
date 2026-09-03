@@ -199,6 +199,44 @@ class HerdRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Aplica localmente um animal recém-cadastrado, ainda pendente na fila —
+  /// sem isso, o rebanho offline não sabe que ele existe até o evento
+  /// sincronizar: nem a leitura por RFID nem a lista o encontram enquanto o
+  /// aparelho estiver sem rede, e o operador acaba cadastrando o mesmo
+  /// brinco de novo a cada leitura (visto com hardware real: 3 cadastros
+  /// duplicados do mesmo RFID na fila, porque cada bip continuava "desconhecido").
+  void applyLocalRegistration({
+    required String animalId,
+    required String visualTagNumber,
+    String? rfidCode,
+    String? officialAnimalId,
+    required String sex,
+    required String breed,
+    required DateTime birthDate,
+    String? lot,
+  }) {
+    if (_animals.any((a) => a.animalId == animalId)) return;
+    final ageMonths = DateTime.now().difference(birthDate).inDays ~/ 30;
+    _animals = [
+      ..._animals,
+      Animal(
+        animalId: animalId,
+        visualTagNumber: visualTagNumber,
+        rfidCode: rfidCode ?? '',
+        officialAnimalId: officialAnimalId,
+        sex: sex,
+        breed: breed,
+        ageMonths: ageMonths < 0 ? 0 : ageMonths,
+        lot: lot ?? '',
+        status: LifecycleStatus.active,
+        lastWeightKg: 0,
+        gmdKgDay: 0,
+      ),
+    ];
+    _persistCache();
+    notifyListeners();
+  }
+
   Future<void> _persistCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();

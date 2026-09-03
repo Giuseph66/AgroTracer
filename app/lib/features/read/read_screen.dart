@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/hardware/rfid_hardware_capture.dart';
 import '../../core/services.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/ear_tag.dart';
 import '../../domain/models.dart';
 import '../animal/animal_screen.dart';
+import '../animals/animals_screen.dart' show openRegisterAnimalSheet;
 
 /// M24/M25 — Leitura RFID. Três estados: aguardando leitura, animal
 /// identificado, brinco desconhecido (caminho controlado do Doc 8 §10).
@@ -20,17 +22,54 @@ class ReadScreen extends StatefulWidget {
 
 enum _ReadPhase { idle, reading, found, unknown }
 
-class _ReadScreenState extends State<ReadScreen> {
+class _ReadScreenState extends State<ReadScreen> with RfidHardwareCapture {
   _ReadPhase phase = _ReadPhase.idle;
   Animal? animal;
   String? rawRfid;
   Timer? _timer;
   int _readCount = 12;
+  bool _readerSeen = false;
+
+  @override
+  bool get rfidCapturePaused =>
+      phase == _ReadPhase.found || phase == _ReadPhase.unknown;
 
   @override
   void dispose() {
     _timer?.cancel();
+    disposeRfidCapture();
     super.dispose();
+  }
+
+  @override
+  void onRfidScan(String code) {
+    final herd = Services.of(context).herd;
+    final match = herd.byRfid(code);
+    setState(() {
+      _readerSeen = true;
+      if (match != null) {
+        animal = match;
+        rawRfid = match.rfidCode;
+        phase = _ReadPhase.found;
+        _readCount++;
+      } else {
+        animal = null;
+        rawRfid = code;
+        phase = _ReadPhase.unknown;
+      }
+    });
+  }
+
+  void _resetToIdle() {
+    setState(() => phase = _ReadPhase.idle);
+    requestRfidFocus();
+  }
+
+  Future<void> _openRawRegistration() async {
+    final services = Services.of(context);
+    await openRegisterAnimalSheet(context, services, initialRfid: rawRfid);
+    if (!mounted) return;
+    _resetToIdle();
   }
 
   void _simulateRead({required bool known}) {
@@ -64,23 +103,29 @@ class _ReadScreenState extends State<ReadScreen> {
         title: Text('Leitura RFID',
             style: t.titleLarge!.copyWith(color: TaColors.paperInk)),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: TaSpace.md),
-            child: Center(
-              child: Text('AT-880 · sinal forte',
-                  style: t.labelSmall!.copyWith(color: TaColors.paperInkSoft)),
+          if (_readerSeen)
+            Padding(
+              padding: const EdgeInsets.only(right: TaSpace.md),
+              child: Center(
+                child: Text('LEITOR CONECTADO',
+                    style: t.labelSmall!.copyWith(color: TaColors.sage)),
+              ),
             ),
-          ),
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(TaSpace.md),
-          child: Column(
-            children: [
-              Expanded(child: Center(child: _buildPhase(context))),
-              _buildFooter(context),
-            ],
+        child: Focus(
+          focusNode: rfidFocusNode,
+          autofocus: true,
+          onKeyEvent: onRfidKeyEvent,
+          child: Padding(
+            padding: const EdgeInsets.all(TaSpace.md),
+            child: Column(
+              children: [
+                Expanded(child: Center(child: _buildPhase(context))),
+                _buildFooter(context),
+              ],
+            ),
           ),
         ),
       ),
@@ -196,7 +241,7 @@ class _ReadScreenState extends State<ReadScreen> {
                         side: const BorderSide(
                             color: TaColors.paperInkSoft, width: 1.5),
                       ),
-                      onPressed: () => setState(() => phase = _ReadPhase.idle),
+                      onPressed: () => _resetToIdle(),
                       icon: const Icon(Icons.sensors),
                       label: const Text('Próximo'),
                     ),
@@ -236,12 +281,12 @@ class _ReadScreenState extends State<ReadScreen> {
             ),
             const SizedBox(height: TaSpace.lg),
             FilledButton.icon(
-              onPressed: () => setState(() => phase = _ReadPhase.idle),
+              onPressed: () => _openRawRegistration(),
               icon: const Icon(Icons.note_add_outlined),
               label: const Text('Registrar com brinco bruto'),
             ),
             TextButton(
-              onPressed: () => setState(() => phase = _ReadPhase.idle),
+              onPressed: () => _resetToIdle(),
               child: Text('Descartar leitura',
                   style: Theme.of(context)
                       .textTheme

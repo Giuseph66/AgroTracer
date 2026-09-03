@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../core/services.dart';
@@ -207,7 +210,7 @@ class _ConflictCard extends StatelessWidget {
                     minimumSize: const Size(0, 44),
                     backgroundColor: TaColors.clay,
                     foregroundColor: Colors.white),
-                onPressed: () {},
+                onPressed: () => _openResolve(context, entry),
                 child: Text(rejected ? 'Refazer' : 'Resolver'),
               ),
               const SizedBox(width: TaSpace.sm),
@@ -216,11 +219,183 @@ class _ConflictCard extends StatelessWidget {
                     minimumSize: const Size(0, 44),
                     side: const BorderSide(color: TaColors.clay),
                     foregroundColor: TaColors.clay),
-                onPressed: () {},
+                onPressed: () => _openDetails(context, entry),
                 child: const Text('Ver detalhes'),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// O que o servidor respondeu, inteiro. Sem isso o operador vê só o código do
+/// erro e não tem como saber qual registro do campo está travado.
+Future<void> _openDetails(BuildContext context, OutboxEntry entry) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final t = Theme.of(sheetContext).textTheme;
+      final e = entry.envelope;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(TaSpace.md),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text('${entry.kind.label} · ${entry.subjectLabel}',
+                  style: t.headlineMedium),
+              const SizedBox(height: TaSpace.md),
+              if (entry.errorCode != null) ...[
+                Text(entry.errorCode!,
+                    style: t.labelMedium!.copyWith(color: TaColors.clay)),
+                const SizedBox(height: 4),
+              ],
+              if (entry.errorDetail != null)
+                Text(entry.errorDetail!, style: t.bodyMedium),
+              const SizedBox(height: TaSpace.lg),
+              const SectionLabel('Registro'),
+              const SizedBox(height: TaSpace.sm),
+              _DetailRow(label: 'Evento', value: e.eventId),
+              _DetailRow(label: 'Tipo', value: e.eventType),
+              _DetailRow(label: 'Sequência', value: '${e.deviceSequence}'),
+              _DetailRow(
+                  label: 'Registrado em',
+                  value: dayHourFmt.format(entry.recordedAt)),
+              _DetailRow(label: 'Tentativas', value: '${entry.attempts}'),
+              _DetailRow(label: 'Hash', value: e.payloadHash),
+              const SizedBox(height: TaSpace.lg),
+              const SectionLabel('Conteúdo enviado'),
+              const SizedBox(height: TaSpace.sm),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(TaSpace.sm),
+                decoration: BoxDecoration(
+                  color: TaColors.paperDim,
+                  borderRadius: BorderRadius.circular(TaRadius.sm),
+                ),
+                child: Text(
+                  const JsonEncoder.withIndent('  ').convert(e.payload),
+                  style: t.labelSmall,
+                ),
+              ),
+              const SizedBox(height: TaSpace.md),
+              OutlinedButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text('Fechar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Conflito é veredicto definitivo do servidor, não falha de rede: reenviar
+/// sozinho nunca resolve. Aqui o operador decide — e as duas saídas dizem o
+/// que acontece antes de acontecer.
+Future<void> _openResolve(BuildContext context, OutboxEntry entry) async {
+  final services = Services.of(context);
+  final rejected = entry.state == SyncState.rejectedByApi;
+
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final t = Theme.of(sheetContext).textTheme;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(TaSpace.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(rejected ? 'Registro recusado' : 'Registro em conflito',
+                  style: t.headlineMedium),
+              const SizedBox(height: TaSpace.sm),
+              Text(
+                entry.errorDetail ??
+                    'O servidor não aceitou este registro do jeito que ele '
+                        'está.',
+                style: t.bodyMedium,
+              ),
+              const SizedBox(height: TaSpace.lg),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(sheetContext).pop('retry'),
+                icon: const Icon(Icons.upload_outlined),
+                label: const Text('Tentar enviar de novo'),
+              ),
+              const SizedBox(height: TaSpace.xs),
+              Text(
+                'Serve quando a causa já foi resolvida de outro jeito. '
+                'Reenviar o mesmo registro é seguro: o servidor reconhece '
+                'que é o mesmo e não duplica.',
+                style: t.bodySmall,
+              ),
+              const SizedBox(height: TaSpace.md),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: TaColors.clay),
+                  foregroundColor: TaColors.clay,
+                ),
+                onPressed: () => Navigator.of(sheetContext).pop('discard'),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Descartar este registro'),
+              ),
+              const SizedBox(height: TaSpace.xs),
+              Text(
+                'Tira da fila deste aparelho. O que foi digitado no campo se '
+                'perde; o conflito continua registrado no servidor.',
+                style: t.bodySmall,
+              ),
+              const SizedBox(height: TaSpace.md),
+              TextButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text('Deixar como está'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  if (action == null || !context.mounted) return;
+  if (action == 'retry') {
+    services.outbox.retry(entry.eventId);
+    unawaited(services.sync.sync());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Registro devolvido para a fila')),
+    );
+  } else if (action == 'discard') {
+    services.outbox.discard(entry.eventId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Registro descartado deste aparelho')),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label, style: t.bodySmall),
+          ),
+          Expanded(child: Text(value, style: t.labelSmall)),
         ],
       ),
     );

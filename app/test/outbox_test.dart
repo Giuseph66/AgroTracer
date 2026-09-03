@@ -145,6 +145,67 @@ void main() {
       expect(outbox.pending, isEmpty);
     });
 
+    test('conflito volta para a fila quando o operador manda reenviar', () {
+      final outbox = Outbox();
+      final entry = outbox.enqueue(
+        kind: EventKind.registerAnimal,
+        subjectId: 'animal-1',
+        subjectLabel: 'Brinco 9500',
+        payload: {'sex': 'F'},
+      );
+      outbox.applyVerdict(entry.eventId,
+          state: SyncState.conflict,
+          code: 'IDENTIFIER_TAKEN',
+          detail: 'RFID já ativo');
+
+      outbox.retry(entry.eventId);
+
+      expect(entry.state, SyncState.pendingSync);
+      expect(entry.errorCode, isNull);
+      expect(entry.errorDetail, isNull);
+      expect(outbox.pending, hasLength(1));
+      expect(outbox.conflictCount, 0);
+    });
+
+    test('descartar tira só o conflito, sem tocar no resto da fila', () {
+      final outbox = Outbox();
+      final ok = outbox.enqueue(
+        kind: EventKind.weighing,
+        subjectId: 'animal-1',
+        subjectLabel: 'Brinco 4127',
+        payload: {'weightKg': 300.0},
+      );
+      final conflicted = outbox.enqueue(
+        kind: EventKind.registerAnimal,
+        subjectId: 'animal-2',
+        subjectLabel: 'Brinco 9500',
+        payload: {'sex': 'F'},
+      );
+      outbox.applyVerdict(conflicted.eventId,
+          state: SyncState.conflict, code: 'IDENTIFIER_TAKEN');
+
+      outbox.discard(conflicted.eventId);
+
+      expect(outbox.conflictCount, 0);
+      expect(outbox.entries, hasLength(1));
+      expect(outbox.entries.single.eventId, ok.eventId);
+    });
+
+    test('descartar não mexe em evento que ainda espera envio', () {
+      final outbox = Outbox();
+      final entry = outbox.enqueue(
+        kind: EventKind.weighing,
+        subjectId: 'animal-1',
+        subjectLabel: 'Brinco 4127',
+        payload: {'weightKg': 300.0},
+      );
+
+      outbox.discard(entry.eventId);
+
+      expect(outbox.entries, hasLength(1));
+      expect(outbox.pending, hasLength(1));
+    });
+
     test('confirmação de âncora registra o TxID no evento', () {
       final outbox = Outbox();
       final entry = outbox.enqueue(

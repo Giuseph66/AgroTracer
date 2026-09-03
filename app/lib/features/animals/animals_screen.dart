@@ -88,7 +88,8 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
                     Expanded(child: Text('Animais', style: t.displayMedium)),
                     IconButton(
                       tooltip: 'Cadastrar animal',
-                      onPressed: () => _openRegister(context, services),
+                      onPressed: () =>
+                          openRegisterAnimalSheet(context, services),
                       icon: const Icon(Icons.add_circle_outline),
                     ),
                     IconButton(
@@ -265,19 +266,95 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
     );
   }
 
-  Future<void> _openRegister(BuildContext context, AppServices services) async {
-    final visual = TextEditingController();
-    final official = TextEditingController();
-    final breed = TextEditingController();
-    final birth = TextEditingController(text: '2024-01-01');
-    final lot = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    var sex = 'F';
-    final created = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setModalState) => Padding(
+  Future<void> _exportInventory(
+    BuildContext context,
+    AppServices services,
+  ) async {
+    try {
+      final csv = await services.api.inventoryCsv(
+        services.auth.identity.propertyId,
+      );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Inventário CSV'),
+          content: SizedBox(
+            width: 720,
+            child: SingleChildScrollView(child: SelectableText(csv)),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                final downloaded = await downloadBytes(
+                  'traceagro-inventario.csv',
+                  utf8.encode(csv),
+                  'text/csv;charset=utf-8',
+                );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      downloaded
+                          ? 'Inventário CSV baixado.'
+                          : 'CSV gerado; o compartilhamento nativo será habilitado no aparelho.',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Baixar CSV'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Inventário indisponível sem conexão.')),
+        );
+      }
+    }
+  }
+}
+
+/// Cadastro manual de animal para rebanho pré-existente. Quando a leitura de
+/// RFID encontra um brinco desconhecido, [initialRfid] chega preenchido —
+/// o cadastro já nasce vinculado ao brinco lido, sem precisar vincular depois.
+Future<void> openRegisterAnimalSheet(
+  BuildContext context,
+  AppServices services, {
+  String? initialRfid,
+}) async {
+  final visual = TextEditingController();
+  final official = TextEditingController();
+  final breed = TextEditingController();
+  final birth = TextEditingController(text: '2024-01-01');
+  final lot = TextEditingController();
+  final rfid = TextEditingController(text: initialRfid ?? '');
+  final formKey = GlobalKey<FormState>();
+  var sex = 'F';
+  final created = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setModalState) => PopScope(
+        canPop: false,
+        // Fechar a folha com um campo ainda focado (voltar, toque fora,
+        // arrastar) derruba o app: o Flutter tenta desmontar o TextFormField
+        // no mesmo passo em que reatribui o foco, e as duas coisas competem
+        // (`_dependents.isEmpty`, framework.dart) — reproduzido com hardware
+        // real. Tirar o foco antes de deixar a folha fechar evita a corrida.
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          FocusManager.instance.primaryFocus?.unfocus();
+          Navigator.of(sheetContext).pop(result);
+        },
+        child: Padding(
           padding: EdgeInsets.fromLTRB(
             TaSpace.md,
             TaSpace.md,
@@ -364,6 +441,13 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
                       ? 'Data inválida'
                       : null,
                 ),
+                const SizedBox(height: TaSpace.sm),
+                TextFormField(
+                  controller: rfid,
+                  decoration: const InputDecoration(
+                    labelText: 'RFID (opcional)',
+                  ),
+                ),
                 const SizedBox(height: TaSpace.md),
                 FilledButton.icon(
                   onPressed: () {
@@ -391,8 +475,29 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
                             'type': 'VISUAL',
                             'visualTagNumber': visual.text.trim(),
                           },
+                          if (rfid.text.trim().isNotEmpty)
+                            {'type': 'RFID', 'rfidCode': rfid.text.trim()},
                         ],
                       },
+                    );
+                    // Sem isso, o animal só existe pro app depois de
+                    // sincronizar — enquanto offline, nem a leitura por RFID
+                    // nem a lista o encontram, e cada bip volta "desconhecido".
+                    services.herd.applyLocalRegistration(
+                      animalId: animalId,
+                      visualTagNumber: visual.text.trim(),
+                      rfidCode: rfid.text.trim().isEmpty
+                          ? null
+                          : rfid.text.trim(),
+                      officialAnimalId: official.text.trim().isEmpty
+                          ? null
+                          : official.text.trim(),
+                      sex: sex,
+                      breed: breed.text.trim().toUpperCase(),
+                      birthDate:
+                          DateTime.tryParse(birth.text.trim()) ??
+                          DateTime.now(),
+                      lot: lot.text.trim().isEmpty ? null : lot.text.trim(),
                     );
                     Navigator.of(sheetContext).pop(true);
                   },
@@ -404,72 +509,25 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
           ),
         ),
       ),
-    );
-    visual.dispose();
-    official.dispose();
-    breed.dispose();
-    birth.dispose();
-    lot.dispose();
-    if (created == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cadastro na fila de envio')),
-      );
-    }
-  }
-
-  Future<void> _exportInventory(
-    BuildContext context,
-    AppServices services,
-  ) async {
-    try {
-      final csv = await services.api.inventoryCsv(
-        services.auth.identity.propertyId,
-      );
-      if (!context.mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Inventário CSV'),
-          content: SizedBox(
-            width: 720,
-            child: SingleChildScrollView(child: SelectableText(csv)),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: () async {
-                final downloaded = await downloadBytes(
-                  'traceagro-inventario.csv',
-                  utf8.encode(csv),
-                  'text/csv;charset=utf-8',
-                );
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      downloaded
-                          ? 'Inventário CSV baixado.'
-                          : 'CSV gerado; o compartilhamento nativo será habilitado no aparelho.',
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.download_outlined),
-              label: const Text('Baixar CSV'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Fechar'),
-            ),
-          ],
-        ),
-      );
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inventário indisponível sem conexão.')),
-        );
-      }
-    }
+    ),
+  );
+  // O future de showModalBottomSheet resolve assim que Navigator.pop() é
+  // chamado — antes da animação de fechamento terminar. Descartar os
+  // controllers na hora enquanto o TextFormField ainda está montado
+  // (deslizando pra fora) derruba o app ("TextEditingController usado após
+  // dispose", cascateando pra `_dependents.isEmpty` do framework). Espera a
+  // transição da folha (Material, ~250ms) terminar antes de descartar.
+  await Future.delayed(const Duration(milliseconds: 300));
+  visual.dispose();
+  official.dispose();
+  breed.dispose();
+  birth.dispose();
+  lot.dispose();
+  rfid.dispose();
+  if (created == true && context.mounted) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Cadastro na fila de envio')));
   }
 }
 

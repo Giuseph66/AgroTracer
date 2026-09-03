@@ -177,6 +177,35 @@ test('RFID ativo em outro animal gera IDENTIFIER_TAKEN (R3)', async () => {
   assert.ok(verdict.conflictId, 'conflito deve ser rastreável por id');
 });
 
+test('cadastro de animal com RFID já ativo gera conflito, não erro cru (R3)', async () => {
+  // Bug real: REGISTER_ANIMAL não checava R3 antes de inserir — o RFID
+  // duplicado batia direto na constraint única do banco (500 cru), sem
+  // veredicto pro cliente, travando a fila offline em retry infinito.
+  const newAnimal = randomUUID();
+  const verdict = await postEvent(
+    makeEvent({
+      eventType: 'REGISTER_ANIMAL',
+      animalId: newAnimal,
+      subjectId: newAnimal,
+      payload: {
+        speciesCode: 'BOVINE',
+        sex: 'F',
+        birthType: 'IMPORTED_RECORD',
+        birthDate: '2024-01-01',
+        breedCode: 'NELORE',
+        initialIdentifiers: [
+          { type: 'VISUAL', visualTagNumber: 'DUP-TEST' },
+          { type: 'RFID', rfidCode: '982000123456789' },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(verdict.status, 'CONFLICT');
+  assert.equal(verdict.code, 'IDENTIFIER_TAKEN');
+  assert.ok(verdict.conflictId, 'conflito deve ser rastreável por id');
+});
+
 test('lote fora de ordem é processado por deviceSequence (R27)', async () => {
   const a = makeEvent();
   const b = makeEvent();

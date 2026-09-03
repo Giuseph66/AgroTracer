@@ -226,6 +226,31 @@ export class EventsService {
             detail: 'data de nascimento futura',
           };
         }
+        // R3: um RFID ativo nunca pertence a dois animais — faltava aqui
+        // (só existia em LINK_IDENTIFIER/REIDENTIFICATION). Sem essa
+        // checagem, um RFID já em uso batia direto na constraint única do
+        // banco e derrubava o lote com 500 cru, sem veredicto pro cliente,
+        // travando a fila offline em retry infinito.
+        const identifiers = Array.isArray(e.payload['initialIdentifiers'])
+          ? (e.payload['initialIdentifiers'] as unknown[])
+          : [];
+        const rfidEntry = identifiers.find(
+          (item): item is Record<string, unknown> =>
+            !!item &&
+            typeof item === 'object' &&
+            !!str((item as Record<string, unknown>)['rfidCode']),
+        );
+        const rfid = rfidEntry ? str(rfidEntry['rfidCode']) : undefined;
+        if (rfid) {
+          const owner = await this.repo.animalHoldingRfid(rfid);
+          if (owner) {
+            return {
+              status: 'CONFLICT',
+              code: 'IDENTIFIER_TAKEN',
+              detail: `RFID ${rfid} já ativo no animal ${owner}`,
+            };
+          }
+        }
         return undefined;
       }
 

@@ -184,6 +184,35 @@ class Outbox {
     _controller.add(null);
   }
 
+  /// Devolve à fila um evento que o servidor recusou ou marcou como conflito.
+  ///
+  /// O reenvio é seguro por idempotência (R22/R23): se o servidor já tiver um
+  /// veredicto para este eventId, devolve o mesmo veredicto em vez de duplicar.
+  void retry(String eventId) {
+    final entry = _byId(eventId);
+    if (entry == null || !entry.needsAttention) return;
+    entry.state = SyncState.pendingSync;
+    entry.errorCode = null;
+    entry.errorDetail = null;
+    unawaited(_persist());
+    _controller.add(null);
+  }
+
+  /// Tira da fila local um evento que já recebeu veredicto negativo definitivo
+  /// do servidor.
+  ///
+  /// Não fere o append-only (R7/R8): o evento nunca entrou em `core.event` —
+  /// foi recusado antes de virar fato — e o conflito continua registrado em
+  /// `core.sync_conflict` para auditoria. O que sai daqui é só a cópia local
+  /// de transmissão, que sem isso ficaria presa na tela para sempre.
+  void discard(String eventId) {
+    final entry = _byId(eventId);
+    if (entry == null || !entry.needsAttention) return;
+    _entries.remove(entry);
+    unawaited(_persist());
+    _controller.add(null);
+  }
+
   void updateAnchor(String eventId, String txId) {
     final entry = _byId(eventId);
     if (entry == null) return;
