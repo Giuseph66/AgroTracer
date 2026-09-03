@@ -83,7 +83,7 @@ Estrutura em `api/src/`:
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
 | `anchor/fabric.gateway.ts` | Porta de saída Fabric. `FABRIC_MODE=simulated` mantém stub; `FABRIC_MODE=real` usa `@hyperledger/fabric-gateway`, TLS, identidade X.509 e `commit status` válido antes de confirmar a âncora. |
 | `anchor/anchor.worker.ts` | `@Interval(3000)`: PENDING → SUBMITTED → CONFIRMED; recupera SUBMITTED travado >30s; máx. 24 tentativas; `FOR UPDATE SKIP LOCKED` (multi-réplica seguro) |
-| `anchor/anchor.controller.ts` | `GET /v1/anchors` (resumo por status), `GET /v1/anchors/recent` e `GET /v1/anchors/:subjectId/proof` |
+| `anchor/anchor.controller.ts` | `GET /v1/anchors` (resumo por status), `GET /v1/anchors/recent`, `GET /v1/anchors/animals` (cobertura por propriedade) e `GET /v1/anchors/:subjectId/proof` |
 | `devices/devices.controller.ts` | `GET /v1/devices/:id/sync-state` → `lastSequence` (retomada de numeração) |
 
 Contratos de resposta da ingestão: sempre veredicto individual por evento

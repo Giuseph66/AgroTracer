@@ -48,6 +48,26 @@
       <div id="metrics" class="metrics" aria-live="polite"></div>
     </section>
 
+    <section class="herd" aria-labelledby="herd-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">REBANHO</p>
+          <h2 id="herd-title">Cobertura por animal</h2>
+        </div>
+        <p class="hint">O animal permanece na API; seus eventos recebem as provas na Fabric.</p>
+      </div>
+      <div id="herd-metrics" class="metrics" aria-live="polite"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Animal</th><th>Eventos API</th><th>Na Fabric atual</th><th>Cadastro</th><th>Último evento</th></tr>
+          </thead>
+          <tbody id="herd-rows"></tbody>
+        </table>
+      </div>
+      <p id="herd-empty" class="empty" hidden>Nenhum animal encontrado nesta propriedade.</p>
+    </section>
+
     <section class="topology" aria-label="Fluxo de confirmação">
       <div class="node api">API TraceAgro<span>Gateway Fabric</span></div>
       <div class="arrow">→</div>
@@ -145,6 +165,11 @@
   .metric.confirmed { border-top: 5px solid var(--sage); }
   .metric.pending, .metric.submitted { border-top: 5px solid var(--yellow); }
   .metric.failed { border-top: 5px solid var(--clay); }
+  .herd { margin-top: 46px; }
+  .herd .table-wrap { margin-top: 18px; }
+  .registration { font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; }
+  .registration.CURRENT_FABRIC { color: var(--sage); }.registration.OTHER_OR_SIMULATED { color: #957300; }.registration.NO_REGISTER_EVENT { color: var(--clay); }
+  .last-event small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
   .topology { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 38px 0 52px; padding: 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   .node { width: 160px; padding: 14px; border: 2px solid var(--green); background: #e4ebdc; color: var(--green-deep); text-align: center; font-weight: 800; }
   .node span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-weight: 500; }
@@ -156,8 +181,8 @@
   table { width: 100%; border-collapse: collapse; text-align: left; }
   th { padding: 13px 16px; color: var(--muted); font-size: 11px; letter-spacing: .09em; }
   td { padding: 15px 16px; border-top: 1px solid var(--line); font-size: 13px; }
-  tbody tr { cursor: pointer; }
-  tbody tr:hover { background: #f4efdf; }
+  #anchor-rows tr { cursor: pointer; }
+  #anchor-rows tr:hover { background: #f4efdf; }
   .status { display: inline-block; padding: 4px 7px; border: 1px solid currentColor; font-size: 10px; font-weight: 900; letter-spacing: .05em; }
   .status.CONFIRMED { color: var(--sage); }.status.PENDING, .status.SUBMITTED { color: #957300; }.status.FAILED { color: var(--clay); }
   .network { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; }
@@ -243,11 +268,56 @@
         target.append(row);
       });
     }
+    function registrationLabel(status) {
+      if (status === 'CURRENT_FABRIC') return 'NA FABRIC';
+      if (status === 'OTHER_OR_SIMULATED') return 'SIMULADO / OUTRA';
+      return 'SEM REGISTRO';
+    }
+    function animalLabel(animal) {
+      if (animal.visualTagNumber) return `Brinco ${animal.visualTagNumber}`;
+      if (animal.officialAnimalId) return animal.officialAnimalId;
+      return short(animal.animalId);
+    }
+    function renderHerd(coverage) {
+      const summary = coverage.summary || {};
+      const cards = [
+        { value: summary.animals || 0, style: 'confirmed', label: 'ANIMAIS' },
+        { value: summary.registeredOnCurrentFabric || 0, style: 'confirmed', label: 'CADASTROS NA FABRIC' },
+        { value: summary.withCurrentFabricEvent || 0, style: 'pending', label: 'COM EVENTO NA FABRIC' },
+        { value: summary.notRegisteredOnCurrentFabric || 0, style: 'failed', label: 'SEM CADASTRO NA FABRIC' },
+      ];
+      const metrics = $('herd-metrics'); clear(metrics);
+      cards.forEach((metric) => {
+        const card = element('div', `metric ${metric.style}`);
+        card.append(element('strong', '', String(metric.value)), element('span', '', metric.label));
+        metrics.append(card);
+      });
+      const target = $('herd-rows'); clear(target);
+      const animals = coverage.data || [];
+      $('herd-empty').hidden = animals.length > 0;
+      animals.forEach((animal) => {
+        const row = document.createElement('tr');
+        const last = element('span', 'last-event', animal.lastEventType || '—');
+        last.append(element('small', '', date(animal.lastEventAt)));
+        const cells = [
+          element('code', '', animalLabel(animal)),
+          element('span', 'mono', String(animal.eventCount || 0)),
+          element('span', 'mono', String(animal.currentFabricEventCount || 0)),
+          element('span', `registration ${animal.registrationStatus}`, registrationLabel(animal.registrationStatus)),
+          last,
+        ];
+        cells.forEach((cell) => { const td = document.createElement('td'); td.append(cell); row.append(td); });
+        target.append(row);
+      });
+    }
     async function refresh() {
       showError('access-error');
-      const [summary, anchors] = await Promise.all([json('/anchors'), json('/anchors/recent?limit=24')]);
+      const [summary, anchors, coverage] = await Promise.all([
+        json('/anchors'), json('/anchors/recent?limit=24'), json('/anchors/animals'),
+      ]);
       renderMetrics(summary);
       renderRows(anchors.data || []);
+      renderHerd(coverage);
       text($('updated-at'), `Atualizado ${fmt.format(new Date())}`);
     }
     function setWorkspace(visible) {

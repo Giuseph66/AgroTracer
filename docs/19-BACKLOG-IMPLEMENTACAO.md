@@ -207,6 +207,9 @@ antes de receber a rede dos parceiros.
 - Painel local autenticado em `/blockchain/` concentra saúde, últimas âncoras e
   consulta de prova, sem expor payloads de negócio; distingue a Fabric atual
   de confirmações simuladas ou de outra rede pelo conjunto de MSPs endossantes.
+- A cobertura por animal cruza projeções da propriedade com eventos ancorados;
+  ela deixa explícito que a rede recebe âncoras de eventos, não o cadastro do
+  animal em si.
 
 Fora do escopo: ingresso na rede dos parceiros, MSP/CA produtivos, HSM/Vault,
 governança e políticas definitivas da Fase 4.

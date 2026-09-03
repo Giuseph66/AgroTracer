@@ -46,6 +46,10 @@ O contador **Fabric atual** considera somente âncoras cujo endosso coincide com
 `FABRIC_ENDORSING_ORGS`; registros simulados ou de outra rede são rotulados no
 histórico e não se passam por prova da rede local.
 
+Em **Cobertura por animal**, o painel mostra eventos aceitos pela API e eventos
+presentes na Fabric atual. Animal é uma projeção da API: a rede não recebe o
+cadastro completo, somente a âncora de cada evento, inclusive `REGISTER_ANIMAL`.
+
 ## Verificar prova sem API
 
 ```bash
