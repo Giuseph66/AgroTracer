@@ -67,7 +67,7 @@ Estrutura em `api/src/`:
 
 | Caminho | Responsabilidade |
 |---------|------------------|
-| `main.ts` | Bootstrap, ValidationPipe global (whitelist + forbidNonWhitelisted), versionamento URI `/v1`, CORS |
+| `main.ts` | Bootstrap, ValidationPipe global (whitelist + forbidNonWhitelisted), versionamento URI `/v1`, CORS e painel Fabric local em `/blockchain/` |
 | `database/database.module.ts` | Pool `pg` global (env `PGHOST/PGPORT/...`; padrão localhost:5433, papel `traceagro_app`) |
 | `events/event.dto.ts` | Envelope canônico (Doc 5 §1) com class-validator; `eventId` exige **UUIDv7** |
 | `events/canonical.ts` | Canonicalização JCS simplificada + SHA-256 (`payloadHash`) |
@@ -83,7 +83,7 @@ Estrutura em `api/src/`:
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
 | `anchor/fabric.gateway.ts` | Porta de saída Fabric. `FABRIC_MODE=simulated` mantém stub; `FABRIC_MODE=real` usa `@hyperledger/fabric-gateway`, TLS, identidade X.509 e `commit status` válido antes de confirmar a âncora. |
 | `anchor/anchor.worker.ts` | `@Interval(3000)`: PENDING → SUBMITTED → CONFIRMED; recupera SUBMITTED travado >30s; máx. 24 tentativas; `FOR UPDATE SKIP LOCKED` (multi-réplica seguro) |
-| `anchor/anchor.controller.ts` | `GET /v1/anchors` (resumo por status), `GET /v1/anchors/:subjectId/proof` |
+| `anchor/anchor.controller.ts` | `GET /v1/anchors` (resumo por status), `GET /v1/anchors/recent` e `GET /v1/anchors/:subjectId/proof` |
 | `devices/devices.controller.ts` | `GET /v1/devices/:id/sync-state` → `lastSequence` (retomada de numeração) |
 
 Contratos de resposta da ingestão: sempre veredicto individual por evento
@@ -187,6 +187,8 @@ Nenhum bug conhecido em aberto na data de referência.
    `public_key`. O enrollment e a assinatura não exportável no Android Keystore
    continuam no backlog B12.
 3. **Fabric local de desenvolvimento** — `blockchain/` sobe duas orgs, peers, orderer, CAs, CouchDB e `traceagro-cc` Go no canal `traceagro-main`. O Gateway real foi validado contra essa rede; ainda faltam rede externa de parceiros, governança, CA/segredos de produção e políticas finais da Fase 4.
+   O painel unificado `/blockchain/` é ferramenta de laboratório autenticada;
+   não substitui um explorador/auditoria de uma rede produtiva.
 4. **Sessão em dois modos** — o guard JWT e a sessão de desenvolvimento estão ativos; OIDC/JWKS pode ser habilitado por ambiente. O app ainda precisa do fluxo PKCE nativo e o escopo ABAC amplo continua evolução de produção.
 5. **Leitura RFID simulada** — sorteia animal do rebanho. Backlog B10 (hardware real, prioridade do usuário após o backlog atual).
 6. **Sem runner de migração** — migrações novas aplicadas via psql manual. Corrigir junto de B1.

@@ -36,6 +36,16 @@ eval "$(blockchain/scripts/api-env.sh)"
 
 Isto não modifica `api/.env` nem imprime conteúdo de chaves.
 
+## Painel central
+
+Com a API em execução, abra [http://localhost:4009/blockchain/](http://localhost:4009/blockchain/).
+O painel reúne estados das âncoras, últimas transações e a prova de um evento.
+Ele autentica pela própria API e mantém o token somente na memória do navegador.
+Em modo de desenvolvimento, use a credencial de laboratório do Doc 18 §4.
+O contador **Fabric atual** considera somente âncoras cujo endosso coincide com
+`FABRIC_ENDORSING_ORGS`; registros simulados ou de outra rede são rotulados no
+histórico e não se passam por prova da rede local.
+
 ## Verificar prova sem API
 
 ```bash

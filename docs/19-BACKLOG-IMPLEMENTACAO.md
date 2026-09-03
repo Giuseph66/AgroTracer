@@ -204,6 +204,9 @@ antes de receber a rede dos parceiros.
   identidade X.509 e confirmação de commit antes de atualizar a âncora local.
 - Validado: deploy do chaincode nos dois peers, consulta direta `VerifyProof` e
   17/17 E2E da API contra a rede local.
+- Painel local autenticado em `/blockchain/` concentra saúde, últimas âncoras e
+  consulta de prova, sem expor payloads de negócio; distingue a Fabric atual
+  de confirmações simuladas ou de outra rede pelo conjunto de MSPs endossantes.
 
 Fora do escopo: ingresso na rede dos parceiros, MSP/CA produtivos, HSM/Vault,
 governança e políticas definitivas da Fase 4.

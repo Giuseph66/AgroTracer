@@ -5,6 +5,8 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import fastifyStatic from '@fastify/static';
+import { resolve } from 'node:path';
 
 import { AppModule } from './app.module';
 
@@ -30,6 +32,13 @@ async function bootstrap() {
   app.enableCors({
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['content-type', 'authorization', 'idempotency-key'],
+  });
+
+  // Painel apenas de desenvolvimento: os dados continuam protegidos pelas
+  // rotas autenticadas da API; a página não contém segredos.
+  await app.register(fastifyStatic, {
+    root: resolve(__dirname, '..', '..', 'blockchain', 'dashboard'),
+    prefix: '/blockchain/',
   });
 
   // 4009 é a porta de desenvolvimento combinada do projeto: o mesmo número

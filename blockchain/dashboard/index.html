@@ -1,0 +1,310 @@
+<main id="fabric-dashboard">
+  <section class="masthead">
+    <div>
+      <p class="eyebrow">TRACEAGRO · LABORATÓRIO LOCAL</p>
+      <h1>Blockchain, em um só lugar.</h1>
+      <p class="lede">Rede Fabric, âncoras confirmadas e provas de integridade — sem expor o conteúdo dos eventos.</p>
+    </div>
+    <div class="network-stamp" aria-label="Topologia da rede">
+      <strong>2 ORGS</strong>
+      <span>1 canal · 1 orderer</span>
+      <code>traceagro-main</code>
+    </div>
+  </section>
+
+  <section id="access" class="access" aria-labelledby="access-title">
+    <div>
+      <p class="eyebrow">ACESSO PROTEGIDO</p>
+      <h2 id="access-title">Entre para consultar as âncoras</h2>
+      <p id="auth-mode">Verificando a configuração da API…</p>
+    </div>
+    <form id="dev-login" class="login-form">
+      <label>E-mail<input id="email" name="email" type="email" autocomplete="username" required></label>
+      <label>Senha<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Entrar no laboratório</button>
+    </form>
+    <form id="token-login" class="token-form">
+      <label>Token de acesso<input id="access-token" type="password" autocomplete="off" placeholder="Use quando a API estiver em OIDC"></label>
+      <button type="submit" class="quiet">Usar token</button>
+    </form>
+    <p id="access-error" class="error" role="alert"></p>
+  </section>
+
+  <section id="workspace" hidden>
+    <div class="toolbar">
+      <div id="identity" class="identity"></div>
+      <button id="refresh" type="button">Atualizar agora</button>
+      <button id="logout" type="button" class="quiet">Sair</button>
+    </div>
+
+    <section aria-labelledby="network-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">REDE</p>
+          <h2 id="network-title">Saúde das âncoras</h2>
+        </div>
+        <p id="updated-at" class="updated"></p>
+      </div>
+      <div id="metrics" class="metrics" aria-live="polite"></div>
+    </section>
+
+    <section class="topology" aria-label="Fluxo de confirmação">
+      <div class="node api">API TraceAgro<span>Gateway Fabric</span></div>
+      <div class="arrow">→</div>
+      <div class="node peer">Org1<span>peer0 · endosso</span></div>
+      <div class="node peer">Org2<span>peer0 · endosso</span></div>
+      <div class="arrow">→</div>
+      <div class="node orderer">Orderer<span>bloco confirmado</span></div>
+    </section>
+
+    <section aria-labelledby="anchors-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">RASTRO IMUTÁVEL</p>
+          <h2 id="anchors-title">Últimas âncoras</h2>
+        </div>
+        <p class="hint">Clique em uma linha para conferir a prova.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Estado</th><th>Origem</th><th>Evento</th><th>Bloco</th><th>Transação</th><th>Confirmado</th></tr>
+          </thead>
+          <tbody id="anchor-rows"></tbody>
+        </table>
+      </div>
+      <p id="anchors-empty" class="empty" hidden>Nenhuma âncora registrada ainda.</p>
+    </section>
+
+    <section class="proof" aria-labelledby="proof-title">
+      <div>
+        <p class="eyebrow">VERIFICAÇÃO</p>
+        <h2 id="proof-title">Consultar uma prova</h2>
+        <p>Informe o UUIDv7 do evento. A consulta retorna somente identificadores técnicos da âncora.</p>
+      </div>
+      <form id="proof-form">
+        <input id="proof-event-id" aria-label="UUID do evento" placeholder="eventId (UUIDv7)" required>
+        <button type="submit">Verificar</button>
+      </form>
+      <dl id="proof-result" class="proof-result" hidden></dl>
+      <p id="proof-error" class="error" role="alert"></p>
+    </section>
+  </section>
+</main>
+
+<style>
+  #fabric-dashboard {
+    --green: #17351f;
+    --green-deep: #0b2111;
+    --paper: #f8f3e8;
+    --ink: #172118;
+    --muted: #657064;
+    --line: #d9d0bd;
+    --yellow: #f0ba12;
+    --clay: #a8472b;
+    --sage: #537548;
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 42px max(24px, calc((100vw - 1120px) / 2));
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Archivo, Arial, sans-serif;
+  }
+  #fabric-dashboard *, #fabric-dashboard *::before, #fabric-dashboard *::after { box-sizing: border-box; }
+  #fabric-dashboard [hidden] { display: none !important; }
+  .masthead { display: flex; justify-content: space-between; gap: 32px; align-items: end; padding: 12px 0 38px; border-bottom: 2px solid var(--green); }
+  .eyebrow { margin: 0 0 7px; color: var(--sage); font-size: 11px; font-weight: 800; letter-spacing: .14em; }
+  h1, h2, p { margin-top: 0; }
+  h1 { max-width: 710px; margin-bottom: 10px; color: var(--green-deep); font-size: clamp(34px, 6vw, 64px); line-height: .98; letter-spacing: -.045em; }
+  h2 { margin-bottom: 5px; font-size: 24px; letter-spacing: -.025em; }
+  .lede { max-width: 620px; margin-bottom: 0; color: var(--muted); line-height: 1.5; }
+  .network-stamp { min-width: 204px; padding: 18px; border: 2px solid var(--yellow); background: var(--yellow); color: #16180f; transform: rotate(1.5deg); }
+  .network-stamp strong, .network-stamp span, .network-stamp code { display: block; }
+  .network-stamp strong { font-size: 25px; letter-spacing: -.04em; }
+  .network-stamp span { margin: 5px 0 10px; font-size: 13px; }
+  code, .mono, .proof-result dd { font-family: "Spline Sans Mono", "SFMono-Regular", Consolas, monospace; }
+  .access { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; margin: 34px 0; padding: 28px; border: 1px solid var(--line); background: #fffdf8; }
+  .access p:last-child { margin-bottom: 0; color: var(--muted); }
+  .login-form, .token-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+  .token-form { grid-column: 2; grid-template-columns: 1fr auto; }
+  label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+  input { min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 0; padding: 0 11px; background: var(--paper); color: var(--ink); font: inherit; }
+  button { min-height: 44px; border: 2px solid var(--green-deep); padding: 0 15px; background: var(--green-deep); color: var(--paper); cursor: pointer; font: inherit; font-size: 13px; font-weight: 800; }
+  button:hover { background: var(--green); }
+  button.quiet { border-color: var(--line); background: transparent; color: var(--ink); }
+  .error { grid-column: 1 / -1; min-height: 1.2em; margin: 0; color: var(--clay) !important; font-size: 13px; font-weight: 700; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin: 28px 0 42px; }
+  .identity { margin-right: auto; color: var(--muted); font-size: 14px; }
+  .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 16px; }
+  .section-heading h2 { margin-bottom: 0; }
+  .updated, .hint { margin: 0; color: var(--muted); font-size: 13px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .metric { min-height: 122px; padding: 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fffdf8; }
+  .metric strong { display: block; margin-bottom: 8px; font-size: 42px; line-height: 1; letter-spacing: -.06em; }
+  .metric span { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+  .metric.confirmed { border-top: 5px solid var(--sage); }
+  .metric.pending, .metric.submitted { border-top: 5px solid var(--yellow); }
+  .metric.failed { border-top: 5px solid var(--clay); }
+  .topology { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 38px 0 52px; padding: 20px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .node { width: 160px; padding: 14px; border: 2px solid var(--green); background: #e4ebdc; color: var(--green-deep); text-align: center; font-weight: 800; }
+  .node span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-weight: 500; }
+  .node.api { background: var(--yellow); }
+  .node.orderer { background: var(--green); color: var(--paper); }
+  .node.orderer span { color: #c7d3c0; }
+  .arrow { color: var(--sage); font-size: 28px; font-weight: 900; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: #fffdf8; }
+  table { width: 100%; border-collapse: collapse; text-align: left; }
+  th { padding: 13px 16px; color: var(--muted); font-size: 11px; letter-spacing: .09em; }
+  td { padding: 15px 16px; border-top: 1px solid var(--line); font-size: 13px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #f4efdf; }
+  .status { display: inline-block; padding: 4px 7px; border: 1px solid currentColor; font-size: 10px; font-weight: 900; letter-spacing: .05em; }
+  .status.CONFIRMED { color: var(--sage); }.status.PENDING, .status.SUBMITTED { color: #957300; }.status.FAILED { color: var(--clay); }
+  .network { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; }
+  .network.CURRENT_FABRIC { color: var(--sage); }
+  .network.OTHER_OR_SIMULATED { color: #957300; }
+  .empty { padding: 20px; border: 1px solid var(--line); color: var(--muted); }
+  .proof { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; margin-top: 48px; padding: 28px; background: var(--green-deep); color: var(--paper); }
+  .proof .eyebrow { color: #c4d3ae; }.proof p { color: #c4d3ae; line-height: 1.45; }.proof h2 { color: var(--paper); }
+  #proof-form { display: flex; gap: 8px; align-items: start; } #proof-form input { flex: 1; background: #f4f1e6; }
+  #proof-form button { border-color: var(--yellow); background: var(--yellow); color: #17190f; }
+  .proof-result { grid-column: 1 / -1; display: grid; grid-template-columns: max-content 1fr; gap: 7px 18px; margin: 0; padding-top: 18px; border-top: 1px solid #405648; }
+  .proof-result dt { color: #b9c2b0; font-size: 12px; }.proof-result dd { margin: 0; overflow-wrap: anywhere; font-size: 12px; }.proof .error { color: #ffb9a2 !important; }
+  @media (max-width: 760px) { #fabric-dashboard { padding: 24px 16px; }.masthead, .access, .proof { display: block; }.network-stamp { margin-top: 28px; }.login-form, .token-form { grid-template-columns: 1fr; margin-top: 18px; }.token-form { margin-top: 10px; }.metrics { grid-template-columns: 1fr 1fr; }.topology { display: grid; grid-template-columns: 1fr 32px 1fr; }.node { width: auto; }.orderer { grid-column: 1 / -1; }.topology .arrow:last-of-type { display: none; }.toolbar { flex-wrap: wrap; }.identity { width: 100%; }.section-heading { align-items: start; flex-direction: column; gap: 7px; } }
+</style>
+
+<script>
+  (() => {
+    const root = document.getElementById('fabric-dashboard');
+    const $ = (id) => document.getElementById(id);
+    const state = { token: '', principal: null };
+    const fmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+
+    function request(path, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (state.token) headers.authorization = `Bearer ${state.token}`;
+      return fetch(`/v1${path}`, { ...options, headers });
+    }
+    async function json(path, options) {
+      const response = await request(path, options);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || `Erro HTTP ${response.status}`);
+      return body;
+    }
+    function text(node, value) { node.textContent = value ?? '—'; return node; }
+    function short(value, size = 12) {
+      if (!value) return '—';
+      return value.length > size * 2 ? `${value.slice(0, size)}…${value.slice(-6)}` : value;
+    }
+    function date(value) { return value ? fmt.format(new Date(value)) : '—'; }
+    function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+    function element(tag, className, value) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (value !== undefined) text(node, value);
+      return node;
+    }
+    function showError(id, error) { text($(id), error ? error.message || String(error) : ''); }
+
+    function renderMetrics(summary) {
+      const counts = Object.fromEntries((summary.data || []).map((row) => [row.status, Number(row.count)]));
+      const cards = [
+        { value: Number(summary.network?.confirmed || 0), style: 'confirmed', label: 'FABRIC ATUAL' },
+        { value: Number(counts.CONFIRMED || 0), style: 'confirmed', label: 'CONFIRMADAS (API)' },
+        { value: Number(counts.PENDING || 0) + Number(counts.SUBMITTED || 0), style: 'pending', label: 'EM FILA' },
+        { value: Number(counts.FAILED || 0), style: 'failed', label: 'FALHAS' },
+      ];
+      const target = $('metrics'); clear(target);
+      cards.forEach((metric) => {
+        const card = element('div', `metric ${metric.style}`);
+        card.append(element('strong', '', String(metric.value)), element('span', '', metric.label));
+        target.append(card);
+      });
+    }
+    function renderRows(anchors) {
+      const target = $('anchor-rows'); clear(target);
+      $('anchors-empty').hidden = anchors.length > 0;
+      anchors.forEach((anchor) => {
+        const row = document.createElement('tr');
+        row.tabIndex = 0;
+        row.title = 'Clique para consultar a prova desta âncora';
+        const cells = [
+          element('span', `status ${anchor.status}`, anchor.status),
+          element('span', `network ${anchor.network}`, anchor.network === 'CURRENT_FABRIC' ? 'FABRIC ATUAL' : 'SIMULADA / OUTRA'),
+          element('code', '', short(anchor.subjectId)),
+          element('span', 'mono', anchor.blockNumber == null ? '—' : String(anchor.blockNumber)),
+          element('code', '', short(anchor.txId)),
+          element('span', '', date(anchor.confirmedAt)),
+        ];
+        cells.forEach((cell) => { const td = document.createElement('td'); td.append(cell); row.append(td); });
+        const inspect = () => { $('proof-event-id').value = anchor.subjectId; loadProof(); };
+        row.addEventListener('click', inspect);
+        row.addEventListener('keydown', (event) => { if (event.key === 'Enter') inspect(); });
+        target.append(row);
+      });
+    }
+    async function refresh() {
+      showError('access-error');
+      const [summary, anchors] = await Promise.all([json('/anchors'), json('/anchors/recent?limit=24')]);
+      renderMetrics(summary);
+      renderRows(anchors.data || []);
+      text($('updated-at'), `Atualizado ${fmt.format(new Date())}`);
+    }
+    function setWorkspace(visible) {
+      $('access').hidden = visible;
+      $('workspace').hidden = !visible;
+    }
+    async function authenticate(token) {
+      state.token = token;
+      const me = await json('/auth/me');
+      state.principal = me.data;
+      text($('identity'), `${me.data.name} · ${me.data.organizationId.slice(0, 8)}…`);
+      setWorkspace(true);
+      await refresh();
+    }
+    async function loadProof() {
+      const eventId = $('proof-event-id').value.trim();
+      if (!eventId) return;
+      showError('proof-error');
+      $('proof-result').hidden = true;
+      try {
+        const proof = await json(`/anchors/${encodeURIComponent(eventId)}/proof`);
+        const fields = [
+          ['Estado', proof.status], ['Origem', proof.network === 'CURRENT_FABRIC' ? 'Fabric atual' : 'Simulada ou outra rede'],
+          ['Canal', proof.channel], ['Chaincode', proof.chaincodeFn],
+          ['Bloco', proof.blockNumber == null ? '—' : String(proof.blockNumber)], ['TxID', proof.txId],
+          ['Hash', proof.payloadHash], ['Endossos', Array.isArray(proof.endorsingOrgs) ? proof.endorsingOrgs.join(', ') : '—'],
+          ['Confirmado', date(proof.confirmedAt)],
+        ];
+        const target = $('proof-result'); clear(target);
+        fields.forEach(([name, value]) => { target.append(element('dt', '', name), element('dd', '', value)); });
+        target.hidden = false;
+      } catch (error) { showError('proof-error', error); }
+    }
+    $('dev-login').addEventListener('submit', async (event) => {
+      event.preventDefault(); showError('access-error');
+      try {
+        const response = await fetch('/v1/auth/dev-login', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: $('email').value, password: $('password').value }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.message || 'Credenciais inválidas');
+        await authenticate(body.accessToken);
+      } catch (error) { showError('access-error', error); }
+    });
+    $('token-login').addEventListener('submit', async (event) => {
+      event.preventDefault(); showError('access-error');
+      try { await authenticate($('access-token').value.trim()); }
+      catch (error) { showError('access-error', error); }
+    });
+    $('refresh').addEventListener('click', () => refresh().catch((error) => showError('access-error', error)));
+    $('logout').addEventListener('click', () => { state.token = ''; state.principal = null; setWorkspace(false); });
+    $('proof-form').addEventListener('submit', (event) => { event.preventDefault(); loadProof(); });
+    fetch('/v1/auth/config').then((response) => response.json()).then((config) => {
+      text($('auth-mode'), config.mode === 'dev'
+        ? 'Use sua credencial de laboratório. O token permanece somente na memória desta página.'
+        : 'A API usa OIDC. Cole um token de acesso válido abaixo.');
+    }).catch(() => text($('auth-mode'), 'A API não respondeu. Confirme se ela está ativa nesta porta.'));
+  })();
+</script>
