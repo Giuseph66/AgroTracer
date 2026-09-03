@@ -9,6 +9,17 @@ import '../sync/event_envelope.dart';
 
 enum AuthFeedbackKind { connection, credentials, service }
 
+/// Backoff do reteste automático de conectividade na tela de login (mesmo
+/// padrão do SyncService): a base pode estar subindo ou o sinal pode
+/// oscilar — o operador não deveria precisar tocar em "tentar novamente".
+const _bootstrapRetryBackoff = [
+  Duration(seconds: 3),
+  Duration(seconds: 6),
+  Duration(seconds: 12),
+  Duration(seconds: 20),
+  Duration(seconds: 30),
+];
+
 class AuthSession extends ChangeNotifier {
   AuthSession({required this.baseUrl, http.Client? client})
     : _client = client ?? http.Client();
@@ -27,9 +38,15 @@ class AuthSession extends ChangeNotifier {
   bool busy = false;
   String? error;
   AuthFeedbackKind? feedbackKind;
+  Timer? _retryTimer;
+  int _retryStreak = 0;
 
   bool get requiresLogin => true;
-  bool get isAuthenticated => accessToken != null && _tokenIsUsable(accessToken!);
+
+  /// Uma sessão local persistida é válida até o próximo contato com a API
+  /// dizer o contrário (expirada ou revogada) — nunca por checagem local de
+  /// prazo, para não travar o operador em campo sem sinal.
+  bool get isAuthenticated => accessToken != null;
   String? get token => accessToken;
   bool can(String permission) => permissions.contains(permission);
 
@@ -45,9 +62,6 @@ class AuthSession extends ChangeNotifier {
       accessToken = prefs.getString(_tokenKey);
       final raw = prefs.getString(_identityKey);
       if (raw != null) _applyPrincipal(jsonDecode(raw) as Map);
-      if (accessToken != null && !_tokenIsUsable(accessToken!)) {
-        await logout(notify: false);
-      }
     } catch (_) {
       accessToken = null;
       identity = DevIdentity.defaultIdentity;
@@ -55,6 +69,7 @@ class AuthSession extends ChangeNotifier {
   }
 
   Future<void> bootstrap() async {
+    _retryTimer?.cancel();
     busy = true;
     error = null;
     feedbackKind = null;
@@ -81,6 +96,7 @@ class AuthSession extends ChangeNotifier {
         }
       }
       error = null;
+      _retryStreak = 0;
     } catch (err) {
       // Sem uma sessão local não há identidade segura para operar offline.
       // Uma sessão já persistida continua válida até expirar/ser revogada no
@@ -88,6 +104,12 @@ class AuthSession extends ChangeNotifier {
       final feedback = _friendlyFeedback(err);
       error = feedback.message;
       feedbackKind = feedback.kind;
+      // Sem sessão local pra usar offline, o operador fica preso na tela de
+      // login: reteste sozinho em vez de depender de um toque manual — a
+      // base pode só estar demorando a subir.
+      if (feedback.kind == AuthFeedbackKind.connection && accessToken == null) {
+        _scheduleRetry();
+      }
     } finally {
       initialized = true;
       busy = false;
@@ -95,7 +117,20 @@ class AuthSession extends ChangeNotifier {
     }
   }
 
+  void _scheduleRetry() {
+    final delay =
+        _bootstrapRetryBackoff[_retryStreak.clamp(
+          0,
+          _bootstrapRetryBackoff.length - 1,
+        )];
+    _retryStreak++;
+    _retryTimer = Timer(delay, () {
+      if (!busy) unawaited(bootstrap());
+    });
+  }
+
   Future<bool> login(String email, String password) async {
+    _retryTimer?.cancel();
     busy = true;
     error = null;
     feedbackKind = null;
@@ -181,21 +216,6 @@ class AuthSession extends ChangeNotifier {
       ? value.whereType<String>().toList(growable: false)
       : const [];
 
-  bool _tokenIsUsable(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return false;
-      final claims = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-      ) as Map;
-      final expiresAt = claims['exp'];
-      return expiresAt is num &&
-          expiresAt * 1000 > DateTime.now().millisecondsSinceEpoch;
-    } catch (_) {
-      return false;
-    }
-  }
-
   _AuthFeedback _friendlyFeedback(Object err) {
     if (err is _AuthRequestException) {
       return switch (err.status) {
@@ -242,6 +262,7 @@ class AuthSession extends ChangeNotifier {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _client.close();
     super.dispose();
   }

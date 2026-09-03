@@ -78,7 +78,7 @@ class _Header extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SectionLabel('TraceAgro', onDark: true),
+              const SectionLabel('Soberano', onDark: true),
               ListenableBuilder(
                 listenable: services.sync,
                 builder: (context, _) => ConnectivityPill(

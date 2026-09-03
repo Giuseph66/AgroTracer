@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -103,24 +105,58 @@ void main() {
     expect(session.canManageUsers, isTrue);
   });
 
-  test('token local expirado não mantém a operação aberta', () async {
-    SharedPreferences.setMockInitialValues({
-      'traceagro.auth.token': _token(expiresIn: const Duration(minutes: -1)),
-      'traceagro.auth.identity': jsonEncode({
-        'organizationId': 'org-1',
-        'actorId': 'actor-1',
-        'deviceId': 'device-1',
-        'propertyId': 'property-1',
-        'appVersion': '0.2.0',
-      }),
-    });
-    final session = AuthSession(baseUrl: 'https://base.traceagro.test');
+  test(
+    'token local expirado mantém a operação aberta offline até o próximo contato com a API',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'traceagro.auth.token': _token(expiresIn: const Duration(minutes: -1)),
+        'traceagro.auth.identity': jsonEncode({
+          'organizationId': 'org-1',
+          'actorId': 'actor-1',
+          'deviceId': 'device-1',
+          'propertyId': 'property-1',
+          'appVersion': '0.2.0',
+        }),
+      });
+      final session = AuthSession(baseUrl: 'https://base.traceagro.test');
 
-    await session.restore();
+      await session.restore();
 
-    expect(session.isAuthenticated, isFalse);
-    expect(session.token, isNull);
-  });
+      expect(session.isAuthenticated, isTrue);
+      expect(session.token, isNotNull);
+    },
+  );
+
+  test(
+    'servidor recusando o token expirado ao voltar online encerra a sessão',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'traceagro.auth.token': _token(expiresIn: const Duration(minutes: -1)),
+        'traceagro.auth.identity': jsonEncode({
+          'organizationId': 'org-1',
+          'actorId': 'actor-1',
+          'deviceId': 'device-1',
+          'propertyId': 'property-1',
+          'appVersion': '0.2.0',
+        }),
+      });
+      final session = AuthSession(
+        baseUrl: 'https://base.traceagro.test',
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/auth/config')) {
+            return http.Response('{"required":true,"mode":"dev"}', 200);
+          }
+          return http.Response('{"message":"token expirado"}', 401);
+        }),
+      );
+
+      await session.restore();
+      await session.bootstrap();
+
+      expect(session.isAuthenticated, isFalse);
+      expect(session.token, isNull);
+    },
+  );
 
   test(
     'falha temporária da API preserva uma sessão local ainda válida',
@@ -152,6 +188,43 @@ void main() {
       expect(session.isAuthenticated, isTrue);
       expect(session.identity.actorId, 'actor-1');
       expect(session.feedbackKind, AuthFeedbackKind.service);
+    },
+  );
+
+  test(
+    'sem sessão local, banner de conexão se autocura sem toque manual',
+    () {
+      var attempts = 0;
+      final session = AuthSession(
+        baseUrl: 'https://base.traceagro.test',
+        client: MockClient((request) async {
+          attempts++;
+          if (attempts < 3) {
+            throw http.ClientException('Failed to fetch');
+          }
+          return http.Response('{"required":true,"mode":"dev"}', 200);
+        }),
+      );
+
+      fakeAsync((async) {
+        unawaited(session.bootstrap());
+        async.flushMicrotasks();
+        expect(attempts, 1);
+        expect(session.feedbackKind, AuthFeedbackKind.connection);
+
+        async.elapse(const Duration(seconds: 3));
+        expect(attempts, 2);
+        expect(session.feedbackKind, AuthFeedbackKind.connection);
+
+        async.elapse(const Duration(seconds: 6));
+        expect(attempts, 3);
+        expect(session.error, isNull);
+        expect(session.feedbackKind, isNull);
+
+        // Depois de recuperar, nenhum reteste extra deveria disparar.
+        async.elapse(const Duration(minutes: 5));
+        expect(attempts, 3);
+      });
     },
   );
 }

@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../core/auth/auth_session.dart';
 import '../../core/services.dart';
 import '../../core/theme/tokens.dart';
 
+/// Tela de login: o ritual de abrir a operação do dia. Tratamento imersivo
+/// (fundo pasture, foco único, zero navegação concorrente) — a mesma
+/// linguagem das telas de campo (leitura, pesagem), não de uma tela de
+/// gestão. O brinco é o herói: a mesma peça que identifica cada animal
+/// no app passa a identificar o operador antes de qualquer registro — e
+/// entra em cena como um carimbo real: bate, assenta, o resto do formulário
+/// segue em cascata. Um único momento orquestrado, não decoração contínua.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -11,77 +19,76 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _obscure = true;
+  late final AnimationController _reveal;
+
+  @override
+  void initState() {
+    super.initState();
+    _reveal = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    final reduceMotion =
+        SchedulerBinding.instance.platformDispatcher.accessibilityFeatures
+            .disableAnimations;
+    if (reduceMotion) {
+      _reveal.value = 1;
+    } else {
+      _reveal.forward();
+    }
+  }
 
   Future<void> _login(AppServices services) async {
-    final ok = await services.login(_email.text.trim(), _password.text);
-    if (!ok || !mounted) return;
+    await services.login(_email.text.trim(), _password.text);
   }
 
   @override
   Widget build(BuildContext context) {
     final services = Services.of(context);
     return Scaffold(
-      backgroundColor: TaColors.paperDim,
+      backgroundColor: TaColors.pasture,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 900;
-            final content = wide
-                ? Row(
-                    children: [
-                      const Expanded(flex: 6, child: _PropertyMapPanel()),
-                      const SizedBox(width: TaSpace.lg),
-                      Expanded(
-                        flex: 4,
-                        child: _AccessPanel(
-                          services: services,
-                          email: _email,
-                          password: _password,
-                          obscure: _obscure,
-                          onToggleObscure: () =>
-                              setState(() => _obscure = !_obscure),
-                          onLogin: () => _login(services),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 292, child: _PropertyMapPanel()),
-                      const SizedBox(height: TaSpace.md),
-                      _AccessPanel(
-                        services: services,
-                        email: _email,
-                        password: _password,
-                        obscure: _obscure,
-                        onToggleObscure: () =>
-                            setState(() => _obscure = !_obscure),
-                        onLogin: () => _login(services),
-                      ),
-                    ],
-                  );
-
-            return CustomPaint(
-              painter: const _PaperGridPainter(),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(wide ? TaSpace.xl : TaSpace.md),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight - (wide ? 64 : 32),
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1180),
-                      child: SizedBox(
-                        height: wide ? 618 : null,
-                        child: content,
-                      ),
-                    ),
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: wide ? TaSpace.xxl : TaSpace.lg,
+                vertical: TaSpace.lg,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - TaSpace.xl,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: wide ? 920 : 420),
+                    child: wide
+                        ? _WideLayout(
+                            reveal: _reveal,
+                            services: services,
+                            email: _email,
+                            password: _password,
+                            obscure: _obscure,
+                            onToggleObscure: () =>
+                                setState(() => _obscure = !_obscure),
+                            onLogin: () => _login(services),
+                          )
+                        : _NarrowLayout(
+                            reveal: _reveal,
+                            services: services,
+                            email: _email,
+                            password: _password,
+                            obscure: _obscure,
+                            onToggleObscure: () =>
+                                setState(() => _obscure = !_obscure),
+                            onLogin: () => _login(services),
+                          ),
                   ),
                 ),
               ),
@@ -94,157 +101,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _reveal.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
   }
 }
 
-class _PropertyMapPanel extends StatelessWidget {
-  const _PropertyMapPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxHeight < 420;
-        return ClipRRect(
-          borderRadius: const BorderRadius.all(TaRadius.rLg),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: TaColors.pasture),
-              const CustomPaint(painter: _FieldContoursPainter()),
-              Padding(
-                padding: EdgeInsets.all(compact ? TaSpace.md : TaSpace.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'TRACEAGRO',
-                          style: TextStyle(
-                            color: TaColors.paperInk,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: TaColors.pastureDeep.withValues(alpha: .56),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: TaColors.paperInkSoft.withValues(
-                                alpha: .44,
-                              ),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.my_location_rounded,
-                                color: TaColors.tagYellow,
-                                size: 14,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'TERMINAL A1',
-                                style: TextStyle(
-                                  color: TaColors.paperInk,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: .7,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (compact)
-                      const SizedBox(height: TaSpace.md)
-                    else
-                      const Spacer(),
-                    Align(
-                      alignment: Alignment.center,
-                      child: _PropertyPin(compact: compact),
-                    ),
-                    if (compact)
-                      const SizedBox(height: TaSpace.md)
-                    else
-                      const Spacer(),
-                    const Text(
-                      'FAZENDA SANTA RITA',
-                      style: TextStyle(
-                        color: TaColors.paperInkSoft,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: TaSpace.sm),
-                    Text(
-                      'Sua operação começa\nonde o rebanho está.',
-                      style: TextStyle(
-                        color: TaColors.paperInk,
-                        fontSize: compact ? 25 : 30,
-                        height: 1.05,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -.8,
-                      ),
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(height: TaSpace.md),
-                      Row(
-                        children: [
-                          _MapDetail(
-                            icon: Icons.landscape_outlined,
-                            text: 'Operação de campo',
-                          ),
-                          const SizedBox(width: TaSpace.md),
-                          _MapDetail(
-                            icon: Icons.sensors,
-                            text: 'Leitor pareado',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: TaSpace.sm),
-                    ] else
-                      const SizedBox(height: TaSpace.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '15°35′S  ·  56°06′W',
-                          style: Theme.of(context).textTheme.labelSmall!
-                              .copyWith(
-                                color: TaColors.paperInkSoft,
-                                letterSpacing: .45,
-                              ),
-                        ),
-                        const _MapScale(),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AccessPanel extends StatelessWidget {
-  const _AccessPanel({
+class _NarrowLayout extends StatelessWidget {
+  const _NarrowLayout({
+    required this.reveal,
     required this.services,
     required this.email,
     required this.password,
@@ -253,6 +119,7 @@ class _AccessPanel extends StatelessWidget {
     required this.onLogin,
   });
 
+  final Animation<double> reveal;
   final AppServices services;
   final TextEditingController email;
   final TextEditingController password;
@@ -262,162 +129,376 @@ class _AccessPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(TaSpace.lg),
-      decoration: const BoxDecoration(
-        color: TaColors.paper,
-        borderRadius: BorderRadius.all(TaRadius.rLg),
-        border: Border.fromBorderSide(BorderSide(color: TaColors.line)),
-      ),
-      child: ListenableBuilder(
-        listenable: services.auth,
-        builder: (context, _) {
-          final auth = services.auth;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: _TagStamp(
+            animation: reveal,
+            end: .55,
+            child: const _BrandMark(),
+          ),
+        ),
+        const SizedBox(height: TaSpace.xl),
+        _Reveal(
+          animation: reveal,
+          start: .35,
+          end: .7,
+          child: const _Heading(),
+        ),
+        const SizedBox(height: TaSpace.xl),
+        _AccessForm(
+          reveal: reveal,
+          services: services,
+          email: email,
+          password: password,
+          obscure: obscure,
+          onToggleObscure: onToggleObscure,
+          onLogin: onLogin,
+        ),
+        const SizedBox(height: TaSpace.xl),
+        _Reveal(
+          animation: reveal,
+          start: .8,
+          end: 1,
+          offsetY: 6,
+          child: const _DeviceFooter(),
+        ),
+      ],
+    );
+  }
+}
+
+class _WideLayout extends StatelessWidget {
+  const _WideLayout({
+    required this.reveal,
+    required this.services,
+    required this.email,
+    required this.password,
+    required this.obscure,
+    required this.onToggleObscure,
+    required this.onLogin,
+  });
+
+  final Animation<double> reveal;
+  final AppServices services;
+  final TextEditingController email;
+  final TextEditingController password;
+  final bool obscure;
+  final VoidCallback onToggleObscure;
+  final Future<void> Function() onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: TaColors.tagYellow,
-                      borderRadius: BorderRadius.all(TaRadius.rSm),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TagStamp(
+                      animation: reveal,
+                      end: .55,
+                      child: const _BrandMark(),
                     ),
-                    child: const Icon(
-                      Icons.vpn_key_outlined,
-                      color: TaColors.stamp,
+                    const SizedBox(height: TaSpace.lg),
+                    _Reveal(
+                      animation: reveal,
+                      start: .35,
+                      end: .7,
+                      child: const _Heading(),
                     ),
-                  ),
-                  const SizedBox(width: TaSpace.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ACESSO DA PROPRIEDADE',
-                          style: theme.textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '01 · identidade de trabalho',
-                          style: theme.textTheme.labelSmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: TaSpace.xl),
-              Text(
-                'Vamos abrir\na operação.',
-                style: theme.textTheme.displayMedium!.copyWith(
-                  letterSpacing: -1,
+                  ],
                 ),
               ),
-              const SizedBox(height: TaSpace.sm),
-              Text(
-                'Entre com a identidade que vai acompanhar cada manejo registrado hoje.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              if (auth.error != null) ...[
-                const SizedBox(height: TaSpace.md),
-                _ConnectionNotice(
-                  kind: auth.feedbackKind ?? AuthFeedbackKind.service,
-                  message: auth.error!,
-                  busy: auth.busy,
-                  onRetry: auth.bootstrap,
-                ),
-              ],
-              const SizedBox(height: TaSpace.lg),
-              TextField(
-                controller: email,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.username],
-                decoration: _fieldDecoration(
-                  label: 'E-mail de trabalho',
-                  icon: Icons.badge_outlined,
-                ),
-              ),
-              const SizedBox(height: TaSpace.sm),
-              TextField(
-                controller: password,
-                obscureText: obscure,
-                textInputAction: TextInputAction.done,
-                autofillHints: const [AutofillHints.password],
-                onSubmitted: (_) {
-                  if (!auth.busy) onLogin();
-                },
-                decoration:
-                    _fieldDecoration(
-                      label: 'Senha',
-                      icon: Icons.key_outlined,
-                    ).copyWith(
-                      suffixIcon: IconButton(
-                        tooltip: obscure ? 'Mostrar senha' : 'Ocultar senha',
-                        onPressed: onToggleObscure,
-                        icon: Icon(
-                          obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                      ),
-                    ),
-              ),
-              const SizedBox(height: TaSpace.xl),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: auth.busy ? null : onLogin,
-                  icon: auth.busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login_rounded),
-                  label: Text(
-                    auth.busy ? 'Conferindo acesso…' : 'Abrir operação',
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: TaSpace.xl),
+                child: SizedBox(
+                  width: 1,
+                  child: ColoredBox(
+                    color: TaColors.paperInkSoft.withValues(alpha: .18),
                   ),
                 ),
               ),
-              const SizedBox(height: TaSpace.md),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.verified_user_outlined,
-                    size: 16,
-                    color: TaColors.sage,
-                  ),
-                  const SizedBox(width: TaSpace.sm),
-                  Expanded(
-                    child: Text(
-                      'A sessão vincula operador, propriedade e aparelho aos registros do campo.',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
+              Expanded(
+                flex: 5,
+                child: _AccessForm(
+                  reveal: reveal,
+                  services: services,
+                  email: email,
+                  password: password,
+                  obscure: obscure,
+                  onToggleObscure: onToggleObscure,
+                  onLogin: onLogin,
+                ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        ),
+        const SizedBox(height: TaSpace.xxl),
+        _Reveal(
+          animation: reveal,
+          start: .8,
+          end: 1,
+          offsetY: 6,
+          child: const _DeviceFooter(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fade + leve deslocamento vertical, escalonado por um intervalo do
+/// controller compartilhado — o equivalente Flutter de uma linha na
+/// timeline de uma animação coreografada (stagger).
+class _Reveal extends StatelessWidget {
+  const _Reveal({
+    required this.animation,
+    required this.start,
+    required this.end,
+    this.offsetY = 14,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final double start;
+  final double end;
+  final double offsetY;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final linear = ((animation.value - start) / (end - start)).clamp(
+          0.0,
+          1.0,
+        );
+        final eased = Curves.easeOutCubic.transform(linear);
+        return Opacity(
+          opacity: linear,
+          child: Transform.translate(
+            offset: Offset(0, offsetY * (1 - eased)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// O momento de destaque da sequência: o brinco bate na tela como um carimbo
+/// de verdade — escala com leve estouro (easeOutBack) e assenta a rotação.
+/// É o único elemento com esse tratamento; tudo ao redor fica quieto.
+class _TagStamp extends StatelessWidget {
+  const _TagStamp({required this.animation, required this.end, required this.child});
+
+  final Animation<double> animation;
+  final double end;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final linear = (animation.value / end).clamp(0.0, 1.0);
+        final scale = Curves.easeOutBack.transform(linear);
+        final settle = Curves.easeOut.transform(linear);
+        return Opacity(
+          opacity: linear,
+          child: Transform.rotate(
+            angle: (1 - settle) * -.1,
+            child: Transform.scale(scale: scale, child: child),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Marca do login: o emblema (mesma peça do ícone do app) com o nome
+/// tipografado abaixo — não a arte crua do logo em JPEG, para respeitar a
+/// tipografia do design system e continuar nítido em qualquer tamanho.
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset('assets/branding/emblem.png', width: 168),
+        const SizedBox(height: TaSpace.sm),
+        Text(
+          'SOBERANO',
+          style: t.displayMedium!.copyWith(
+            color: TaColors.paperInk,
+            fontSize: 32,
+            letterSpacing: 1.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Heading extends StatelessWidget {
+  const _Heading();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Abrir a operação\nde hoje.',
+          style: t.displayMedium!.copyWith(
+            color: TaColors.paperInk,
+            letterSpacing: -.6,
+          ),
+        ),
+        const SizedBox(height: TaSpace.sm),
+        Text(
+          'Sua identidade acompanha cada registro em Fazenda Santa Rita.',
+          style: t.bodyMedium!.copyWith(color: TaColors.paperInkSoft),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccessForm extends StatelessWidget {
+  const _AccessForm({
+    required this.reveal,
+    required this.services,
+    required this.email,
+    required this.password,
+    required this.obscure,
+    required this.onToggleObscure,
+    required this.onLogin,
+  });
+
+  final Animation<double> reveal;
+  final AppServices services;
+  final TextEditingController email;
+  final TextEditingController password;
+  final bool obscure;
+  final VoidCallback onToggleObscure;
+  final Future<void> Function() onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: services.auth,
+      builder: (context, _) {
+        final auth = services.auth;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Reveal(
+              animation: reveal,
+              start: .5,
+              end: .8,
+              child: _LabeledField(
+                label: 'E-mail de trabalho',
+                child: TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.username],
+                  style: const TextStyle(color: TaColors.ink),
+                  decoration: _fieldDecoration(icon: Icons.badge_outlined),
+                ),
+              ),
+            ),
+            const SizedBox(height: TaSpace.md),
+            _Reveal(
+              animation: reveal,
+              start: .56,
+              end: .86,
+              child: _LabeledField(
+                label: 'Senha',
+                child: TextField(
+                  controller: password,
+                  obscureText: obscure,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.password],
+                  style: const TextStyle(color: TaColors.ink),
+                  onSubmitted: (_) {
+                    if (!auth.busy) onLogin();
+                  },
+                  decoration: _fieldDecoration(icon: Icons.key_outlined)
+                      .copyWith(
+                        suffixIcon: IconButton(
+                          tooltip: obscure ? 'Mostrar senha' : 'Ocultar senha',
+                          color: TaColors.inkSoft,
+                          onPressed: onToggleObscure,
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                ),
+              ),
+            ),
+            if (auth.busy || auth.error != null) ...[
+              const SizedBox(height: TaSpace.sm),
+              _StatusLine(
+                busy: auth.busy,
+                message: auth.error,
+                kind: auth.feedbackKind,
+                onRetry: auth.feedbackKind == AuthFeedbackKind.connection
+                    ? auth.bootstrap
+                    : null,
+              ),
+            ],
+            const SizedBox(height: TaSpace.md),
+            _Reveal(
+              animation: reveal,
+              start: .68,
+              end: .95,
+              offsetY: 10,
+              child: FilledButton.icon(
+                onPressed: auth.busy ? null : onLogin,
+                icon: auth.busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: TaColors.stamp,
+                        ),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(
+                  auth.busy ? 'Conferindo acesso…' : 'Abrir operação',
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  InputDecoration _fieldDecoration({
-    required String label,
-    required IconData icon,
-  }) {
+  InputDecoration _fieldDecoration({required IconData icon}) {
     return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
+      prefixIcon: Icon(icon, color: TaColors.inkSoft),
       filled: true,
-      fillColor: TaColors.paperDim.withValues(alpha: .68),
+      fillColor: TaColors.paper,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: TaSpace.md,
         vertical: 18,
@@ -438,251 +519,127 @@ class _AccessPanel extends StatelessWidget {
   }
 }
 
-class _ConnectionNotice extends StatelessWidget {
-  const _ConnectionNotice({
-    required this.kind,
-    required this.message,
+/// Rótulo fixo acima do campo em vez do `labelText` flutuante do Material.
+/// O rótulo flutuante do `OutlineInputBorder` sempre fica meio dentro/meio
+/// fora do campo (a metade de dentro cai sobre o preenchimento `paper`
+/// claro, a de fora sobre o fundo `pasture` escuro) — nenhuma cor única lê
+/// bem nos dois ao mesmo tempo. Um rótulo estático ao lado resolve de vez.
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: t.bodySmall!.copyWith(
+            color: TaColors.paperInkSoft,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+/// Estado de conexão da tentativa de acesso. Discreto por padrão — offline
+/// não é erro (AGENTS §2.5) — só ganha o tom de alerta quando há mesmo uma
+/// falha para o operador resolver.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({
     required this.busy,
+    required this.message,
+    required this.kind,
     required this.onRetry,
   });
 
-  final AuthFeedbackKind kind;
-  final String message;
   final bool busy;
-  final Future<void> Function() onRetry;
+  final String? message;
+  final AuthFeedbackKind? kind;
+  final Future<void> Function()? onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final connection = kind == AuthFeedbackKind.connection;
-    final credentials = kind == AuthFeedbackKind.credentials;
-    final icon = connection
-        ? Icons.cloud_off_outlined
-        : credentials
-        ? Icons.key_off_outlined
-        : Icons.info_outline;
-    final title = connection
-        ? 'Sem conexão com a base de campo'
-        : credentials
-        ? 'Confira sua identidade de acesso'
-        : 'Acesso indisponível por enquanto';
-    return Container(
-      padding: const EdgeInsets.all(TaSpace.md),
-      decoration: BoxDecoration(
-        color: TaColors.clayBg,
-        borderRadius: const BorderRadius.all(TaRadius.rMd),
-        border: Border.all(color: TaColors.clay.withValues(alpha: .42)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: TaColors.clay),
-          const SizedBox(width: TaSpace.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    color: TaColors.clay,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(message, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-          if (connection)
-            IconButton(
-              tooltip: 'Tentar novamente',
-              onPressed: busy ? null : onRetry,
-              icon: const Icon(Icons.refresh_rounded, color: TaColors.clay),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PropertyPin extends StatelessWidget {
-  const _PropertyPin({required this.compact});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: compact ? 76 : 96,
-      height: compact ? 76 : 96,
-      decoration: BoxDecoration(
-        color: TaColors.tagYellow,
-        shape: BoxShape.circle,
-        border: Border.all(color: TaColors.paper, width: 4),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .26),
-            blurRadius: 20,
-            spreadRadius: 4,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.sensors, color: TaColors.stamp, size: compact ? 24 : 30),
-          const SizedBox(height: 2),
-          const Text(
-            'A1',
-            style: TextStyle(
-              color: TaColors.stamp,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapDetail extends StatelessWidget {
-  const _MapDetail({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: TaColors.tagYellow, size: 15),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall!.copyWith(
-            color: TaColors.paperInk,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MapScale extends StatelessWidget {
-  const _MapScale();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Container(width: 64, height: 2, color: TaColors.paperInk),
-        const SizedBox(height: 3),
-        const Text(
-          '250 m',
-          style: TextStyle(
-            color: TaColors.paperInkSoft,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FieldContoursPainter extends CustomPainter {
-  const _FieldContoursPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final contour = Paint()
-      ..color = TaColors.paperInk.withValues(alpha: .13)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final boundary = Paint()
-      ..color = TaColors.sage.withValues(alpha: .34)
-      ..style = PaintingStyle.fill;
-
-    final field = Path()
-      ..moveTo(size.width * .16, size.height * .11)
-      ..lineTo(size.width * .76, size.height * .05)
-      ..lineTo(size.width * .91, size.height * .42)
-      ..lineTo(size.width * .65, size.height * .89)
-      ..lineTo(size.width * .12, size.height * .76)
-      ..close();
-    canvas.drawPath(field, boundary);
-
-    for (var index = 0; index < 5; index++) {
-      final inset = index * 20.0;
-      final path = Path()
-        ..moveTo(size.width * .04 + inset, size.height * .22 + inset * .18)
-        ..quadraticBezierTo(
-          size.width * .42,
-          size.height * (.04 + index * .03),
-          size.width * .9 - inset * .45,
-          size.height * .27 + inset * .2,
-        )
-        ..quadraticBezierTo(
-          size.width * .58,
-          size.height * .72 - inset * .12,
-          size.width * .12 + inset * .32,
-          size.height * .78 - inset * .1,
-        );
-      canvas.drawPath(path, contour);
-    }
-
-    final route = Paint()
-      ..color = TaColors.tagYellow.withValues(alpha: .78)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    final routePath = Path()
-      ..moveTo(0, size.height * .69)
-      ..cubicTo(
-        size.width * .22,
-        size.height * .62,
-        size.width * .47,
-        size.height * .72,
-        size.width * .57,
-        size.height * .53,
-      )
-      ..cubicTo(
-        size.width * .67,
-        size.height * .38,
-        size.width * .85,
-        size.height * .44,
-        size.width,
-        size.height * .3,
+    final t = Theme.of(context).textTheme;
+    if (busy && message == null) {
+      return Text(
+        'Conferindo a base de campo…',
+        style: t.bodySmall!.copyWith(color: TaColors.paperInkSoft),
       );
-    canvas.drawPath(routePath, route);
-  }
+    }
+    if (message == null) return const SizedBox.shrink();
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+    final icon = switch (kind) {
+      AuthFeedbackKind.connection => Icons.cloud_off_outlined,
+      AuthFeedbackKind.credentials => Icons.key_off_outlined,
+      _ => Icons.info_outline,
+    };
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: TaColors.clay),
+        const SizedBox(width: TaSpace.sm),
+        Expanded(
+          child: Text(
+            message!,
+            style: t.bodySmall!.copyWith(color: TaColors.clay),
+          ),
+        ),
+        if (onRetry != null)
+          InkWell(
+            onTap: busy ? null : onRetry,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(
+                Icons.refresh_rounded,
+                size: 16,
+                color: TaColors.clay.withValues(alpha: busy ? .4 : 1),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
-class _PaperGridPainter extends CustomPainter {
-  const _PaperGridPainter();
+class _DeviceFooter extends StatelessWidget {
+  const _DeviceFooter();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = TaColors.inkSoft.withValues(alpha: .045)
-      ..strokeWidth = 1;
-    const step = 42.0;
-    for (var x = 0.0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (var y = 0.0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Icon(
+          Icons.verified_user_outlined,
+          size: 15,
+          color: TaColors.paperInkSoft.withValues(alpha: .8),
+        ),
+        const SizedBox(width: TaSpace.sm),
+        Expanded(
+          child: Text(
+            'A sessão vincula você, a propriedade e este aparelho aos '
+            'registros do campo.',
+            style: t.bodySmall!.copyWith(color: TaColors.paperInkSoft),
+          ),
+        ),
+        const SizedBox(width: TaSpace.sm),
+        Text(
+          'TERMINAL A1',
+          style: t.labelSmall!.copyWith(
+            color: TaColors.paperInkSoft.withValues(alpha: .7),
+          ),
+        ),
+      ],
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

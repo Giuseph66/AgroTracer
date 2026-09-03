@@ -46,7 +46,12 @@ export class AuthService {
     const principal = await this.findPrincipal(email, password);
     if (!principal) throw new UnauthorizedException('credenciais inválidas');
     const accessToken = this.signDevToken(principal);
-    return { accessToken, tokenType: 'Bearer', expiresIn: 3600, principal };
+    return {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: this.tokenTtlSeconds(),
+      principal,
+    };
   }
 
   async me(token: string): Promise<AuthPrincipal> {
@@ -135,7 +140,7 @@ export class AuthService {
       email: principal.email,
       roles: principal.roles,
       iat: now,
-      exp: now + 3600,
+      exp: now + this.tokenTtlSeconds(),
     });
     const input = `${header}.${payload}`;
     const signature = createHmac('sha256', this.jwtSecret())
@@ -214,6 +219,14 @@ export class AuthService {
 
   private jwtSecret(): string {
     return process.env.AUTH_JWT_SECRET ?? 'traceagro-dev-secret-change-me';
+  }
+
+  /// Prazo do token dev. Revogação/suspensão são revalidadas no banco a cada
+  /// requisição (findPrincipal), então um prazo longo não abre brecha de
+  /// acesso — só evita reautenticar o operador em campo sem sinal por horas.
+  private tokenTtlSeconds(): number {
+    const raw = Number(process.env.AUTH_TOKEN_TTL_SECONDS);
+    return Number.isFinite(raw) && raw > 0 ? raw : 60 * 60 * 24 * 30;
   }
 }
 

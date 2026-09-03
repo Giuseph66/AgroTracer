@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens do TraceAgro.
+/// Design tokens do Soberano.
 ///
 /// Identidade: "brinco de gado" — amarelo estampado sobre verde-pasto profundo
 /// e papel quente. Alto contraste para uso sob sol; alvos grandes para luva.

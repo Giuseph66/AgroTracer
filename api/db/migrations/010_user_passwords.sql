@@ -21,7 +21,8 @@ UPDATE core.app_user
      WHEN 'carla@vet.example' THEN
        'scrypt$16384$8$1$nx3KDm7tn9BTMp3NSYuwjQ$17nYPc7EG0D10t5Xlc9Ah7k-lMZ6F0qRywA_npPb4-NGyG3htbizRm3HK-2XpjINmgRshXSTZlqWiYjRhL__zw'
      WHEN 'giuseph@gmail.com' THEN
-       'scrypt$16384$8$1$bzQESuT1kVz3rjmMkrnjLQ$AwDNgKMjQ3iwxOFkihrHrzv6ZuuQkSO_7OuhS7eR7tiVal2nXRYfIHmck1P_6dbcde2pNorzc061hm92oT5BaQ'
+       -- Senha: campo123
+       'scrypt$16384$8$1$nNmCpCpMjNV_pRIchuzpGg$YLTjh01iTkHmYy84iL5yr-UciNIb-hc_3luhJs-6rlKt_OyuL2mK89fzGu2SruADGEq1yHkOhqnz26dTisRIow'
      ELSE password_hash
    END
  WHERE password_hash IS NULL

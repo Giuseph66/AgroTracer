@@ -14,17 +14,17 @@ import 'features/sync/sync_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR');
-  runApp(const TraceAgroApp());
+  runApp(const SoberanoApp());
 }
 
-class TraceAgroApp extends StatefulWidget {
-  const TraceAgroApp({super.key});
+class SoberanoApp extends StatefulWidget {
+  const SoberanoApp({super.key});
 
   @override
-  State<TraceAgroApp> createState() => _TraceAgroAppState();
+  State<SoberanoApp> createState() => _SoberanoAppState();
 }
 
-class _TraceAgroAppState extends State<TraceAgroApp> {
+class _SoberanoAppState extends State<SoberanoApp> {
   late final AppServices services;
 
   @override
@@ -44,7 +44,7 @@ class _TraceAgroAppState extends State<TraceAgroApp> {
     return Services(
       services: services,
       child: MaterialApp(
-        title: 'TraceAgro',
+        title: 'Soberano',
         debugShowCheckedModeBanner: false,
         theme: buildTaTheme(),
         home: const AuthGate(),
