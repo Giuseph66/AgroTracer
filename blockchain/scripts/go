@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# O deployCC do fabric-samples executa `go mod vendor` no host. Este wrapper
+# mantém a ferramenta fora da máquina e usa a imagem oficial do ccenv.
+image="hyperledger/fabric-ccenv:${FABRIC_VERSION:-2.5.16}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_dir="$(cd "$script_dir/../.." && pwd)"
+exec docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e GOPATH=/tmp/go \
+  -e GOCACHE=/tmp/go-cache \
+  -e GOMODCACHE=/tmp/go-mod-cache \
+  -v "$repo_dir:$repo_dir" \
+  -w "$PWD" \
+  "$image" go "$@"

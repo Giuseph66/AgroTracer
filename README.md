@@ -14,11 +14,12 @@ está implementado.
 | App Flutter | Design system, fila/cache local persistente, sessão, hash canônico, sincronização, pesagem, vacinação, nascimento, embarque, GTA, áreas, genealogia e exportação CSV/dossiê | Drift/SQLCipher, assinatura ECDSA no app/Keystore, RFID/balança reais, mapa offline e PKCE nativo |
 | API NestJS | Ingestão idempotente, validação, RBAC sanitário temporal, guard JWT, modo dev e OIDC/JWKS configurável, projeções, catálogo, piquetes PostGIS, embarques/recebimentos, genealogia, CSV e dossiê verificável; ECDSA P-256 estrita por configuração | Enrollment PKCE completo, documentos, adaptadores externos, OpenAPI publicado |
 | Banco | Schema núcleo + projeções, PostGIS, catálogo, piquetes e embarques, append-only por grants | Particionamento e retenção |
-| Blockchain | Worker de ancoragem com estados e recuperação; gateway simulado | Rede Fabric real, chaincode Go, políticas de endosso |
+| Blockchain | Worker de ancoragem com estados e recuperação; Gateway Fabric real configurável; rede local com 2 orgs e chaincode Go | Rede externa de parceiros, governança e operação de produção |
 
-O gateway Fabric é **simulado** (`FABRIC_MODE != real`): ele exercita todo o
-caminho de ancoragem — estados, retry, prova — sem rede. Nada no que está acima
-dele muda quando a rede real entrar.
+`FABRIC_MODE=simulated` mantém o stub para testes unitários. `FABRIC_MODE=real`
+usa `@hyperledger/fabric-gateway`, TLS, identidade X.509 e aguarda commit válido
+antes de confirmar a âncora. A rede local está documentada em
+[`blockchain/`](blockchain/README.md); ela é somente desenvolvimento/homologação.
 
 ## Rodar
 

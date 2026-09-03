@@ -191,6 +191,25 @@ Enrolamento de dispositivo com aprovação (Doc 3 §17). Depende de B1.
 
 ---
 
+## B13 — Emulador Fabric local
+
+**Estado: concluído.** Fundação de desenvolvimento para validar a integração
+antes de receber a rede dos parceiros.
+
+- `blockchain/` baixa Fabric 2.5.16/CA 1.5.22 fora do Git e sobe duas orgs,
+  peers, orderer, CAs, CouchDB e o canal `traceagro-main`.
+- Chaincode Go `traceagro-cc` grava apenas registros-âncora permitidos pelo Doc
+  11 e exige endosso `AND(Org1MSP.peer, Org2MSP.peer)`.
+- API usa `@hyperledger/fabric-gateway` em `FABRIC_MODE=real`, com TLS,
+  identidade X.509 e confirmação de commit antes de atualizar a âncora local.
+- Validado: deploy do chaincode nos dois peers, consulta direta `VerifyProof` e
+  17/17 E2E da API contra a rede local.
+
+Fora do escopo: ingresso na rede dos parceiros, MSP/CA produtivos, HSM/Vault,
+governança e políticas definitivas da Fase 4.
+
+---
+
 ## Registro de decisões pendentes deste backlog
 
 | # | QUESTÃO EM ABERTO | Sugestão | Decide |

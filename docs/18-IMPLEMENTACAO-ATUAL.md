@@ -16,7 +16,7 @@ Tela de pesagem (Flutter web/Android)
     → POST /v1/sync/batches (NestJS)
       → pipeline: dedup → dispositivo → assinatura → hash → sujeito → regras
         → core.event (Postgres, append-only) + projeções + âncora PENDING
-          → anchor-worker (3s) → gateway Fabric (simulado) → CONFIRMED
+          → anchor-worker (3s) → gateway Fabric (simulado ou real) → CONFIRMED
             → app busca prova e exibe selo "Comprovado" com TxID
 ```
 
@@ -81,7 +81,7 @@ Estrutura em `api/src/`:
 | `admin/` | Gestão organizacional de usuários: listar, criar com e-mail/senha, redefinir senha, trocar roles vigentes e ativar/suspender; toda mutação gera AuditLog |
 | `reports/reports.controller.ts` | `GET /v1/reports/animals.csv`, `GET /v1/reports/animals/:id.json` e `.pdf` — inventário e dossiê verificável |
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
-| `anchor/fabric.gateway.ts` | Porta de saída Fabric. **Simulado** (`FABRIC_MODE != real`): latência + TxID derivado do hash + endorsingOrgs fixos. Trocar por `@hyperledger/fabric-gateway` na Fase 4 sem tocar no resto |
+| `anchor/fabric.gateway.ts` | Porta de saída Fabric. `FABRIC_MODE=simulated` mantém stub; `FABRIC_MODE=real` usa `@hyperledger/fabric-gateway`, TLS, identidade X.509 e `commit status` válido antes de confirmar a âncora. |
 | `anchor/anchor.worker.ts` | `@Interval(3000)`: PENDING → SUBMITTED → CONFIRMED; recupera SUBMITTED travado >30s; máx. 24 tentativas; `FOR UPDATE SKIP LOCKED` (multi-réplica seguro) |
 | `anchor/anchor.controller.ts` | `GET /v1/anchors` (resumo por status), `GET /v1/anchors/:subjectId/proof` |
 | `devices/devices.controller.ts` | `GET /v1/devices/:id/sync-state` → `lastSequence` (retomada de numeração) |
@@ -186,7 +186,7 @@ Nenhum bug conhecido em aberto na data de referência.
    valida P-256 no modo `EVENT_SIGNATURE_MODE=ecdsa` quando o dispositivo possui
    `public_key`. O enrollment e a assinatura não exportável no Android Keystore
    continuam no backlog B12.
-3. **Fabric simulado** — gateway gera TxID localmente. Rede real é Fase 4 (Doc 10). O contrato acima do gateway não muda.
+3. **Fabric local de desenvolvimento** — `blockchain/` sobe duas orgs, peers, orderer, CAs, CouchDB e `traceagro-cc` Go no canal `traceagro-main`. O Gateway real foi validado contra essa rede; ainda faltam rede externa de parceiros, governança, CA/segredos de produção e políticas finais da Fase 4.
 4. **Sessão em dois modos** — o guard JWT e a sessão de desenvolvimento estão ativos; OIDC/JWKS pode ser habilitado por ambiente. O app ainda precisa do fluxo PKCE nativo e o escopo ABAC amplo continua evolução de produção.
 5. **Leitura RFID simulada** — sorteia animal do rebanho. Backlog B10 (hardware real, prioridade do usuário após o backlog atual).
 6. **Sem runner de migração** — migrações novas aplicadas via psql manual. Corrigir junto de B1.
