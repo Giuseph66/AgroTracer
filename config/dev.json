@@ -1,4 +1,4 @@
 {
   "_comment": "Configuração de build do app em desenvolvimento. Consumido por: flutter run --dart-define-from-file=../config/dev.json (a partir de app/). Os valores são gravados no binário em tempo de compilação — mudar este arquivo exige recompilar o app. A porta precisa ser a mesma de api/src/main.ts e de api/.env.example.",
-  "TRACEAGRO_API": "http://localhost:4009"
+  "TRACEAGRO_API": "http://192.168.0.25:4009"
 }

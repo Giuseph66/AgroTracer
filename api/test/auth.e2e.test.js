@@ -27,7 +27,7 @@ test('sessão local devolve identidade e roles do usuário', async () => {
   const login = await json('/v1/auth/dev-login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'joao@santarita.example', password: 'campo' }),
+    body: JSON.stringify({ email: 'joao@santarita.example', password: 'campo-joao' }),
   });
   assert.equal(login.response.status, 201, JSON.stringify(login.body));
   assert.ok(login.body.accessToken);
@@ -48,14 +48,14 @@ test('RBAC protege e aplica a gestão de usuários da organização', async () =
   const adminLogin = await json('/v1/auth/dev-login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'joao@santarita.example', password: 'campo' }),
+    body: JSON.stringify({ email: 'joao@santarita.example', password: 'campo-joao' }),
   });
   const adminToken = adminLogin.body.accessToken;
 
   const vetLogin = await json('/v1/auth/dev-login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: 'carla@vet.example', password: 'campo' }),
+    body: JSON.stringify({ email: 'carla@vet.example', password: 'campo-carla' }),
   });
   const denied = await json('/v1/admin/users', {
     headers: { authorization: `Bearer ${vetLogin.body.accessToken}` },
@@ -72,6 +72,7 @@ test('RBAC protege e aplica a gestão de usuários da organização', async () =
     body: JSON.stringify({
       name: 'Escalada bloqueada',
       email: `escalation-${Date.now()}@traceagro.test`,
+      password: 'bloqueada',
       roles: ['ADMP'],
     }),
   });
@@ -88,11 +89,32 @@ test('RBAC protege e aplica a gestão de usuários da organização', async () =
     body: JSON.stringify({
       name: 'Pessoa E2E',
       email: `e2e-${suffix}@traceagro.test`,
+      password: 'senha-e2e',
       roles: ['OPER'],
     }),
   });
   assert.equal(created.response.status, 201, JSON.stringify(created.body));
   assert.deepEqual(created.body.data.roles, ['OPER']);
+
+  const differentPasswordDenied = await json('/v1/auth/dev-login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email: `e2e-${suffix}@traceagro.test`,
+      password: 'campo-joao',
+    }),
+  });
+  assert.equal(differentPasswordDenied.response.status, 401);
+
+  const createdLogin = await json('/v1/auth/dev-login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      email: `e2e-${suffix}@traceagro.test`,
+      password: 'senha-e2e',
+    }),
+  });
+  assert.equal(createdLogin.response.status, 201, JSON.stringify(createdLogin.body));
 
   const suspended = await json(`/v1/admin/users/${created.body.data.id}`, {
     method: 'PATCH',

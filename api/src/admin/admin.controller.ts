@@ -31,6 +31,10 @@ class CreateUserDto {
   @IsEmail()
   email: string;
 
+  @IsString()
+  @MinLength(4)
+  password: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @IsIn(ROLE_CODES, { each: true })
@@ -46,6 +50,11 @@ class UpdateUserDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  password?: string;
 
   @IsOptional()
   @IsIn(['ACTIVE', 'SUSPENDED'])

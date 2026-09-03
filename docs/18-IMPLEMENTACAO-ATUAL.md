@@ -58,6 +58,8 @@ Resultados de teste na data de referência:
     PROD e VETE do laboratório.
   - `008_admin_access.sql` — e-mail único, catálogo de códigos permitido e
     vínculo ADMO vigente para administração do laboratório.
+  - `010_user_passwords.sql` — hash scrypt de senha individual por usuário para
+    o login local; a senha nunca é armazenada em texto puro.
 
 ### 2.2 API (NestJS 11 + Fastify, porta 4009 por padrão — env `PORT`, ver `api/.env.example`)
 
@@ -75,8 +77,8 @@ Estrutura em `api/src/`:
 | `catalog/catalog.controller.ts` | `GET /v1/catalog/vet-products` |
 | `areas/areas.controller.ts` | Piquetes, geometrias e animais por área |
 | `shipments/shipments.controller.ts` | Lista/detalhe de expedições, conferência e GTA |
-| `auth/` | Login dev/OIDC, validação JWT, sessão obrigatória em toda rota não pública, permissões `module.action` e RBAC centralizado |
-| `admin/` | Gestão organizacional de usuários: listar, criar, trocar roles vigentes e ativar/suspender; toda mutação gera AuditLog |
+| `auth/` | Login dev por e-mail + senha individual/OIDC, hash scrypt, validação JWT, sessão obrigatória em toda rota não pública, permissões `module.action` e RBAC centralizado |
+| `admin/` | Gestão organizacional de usuários: listar, criar com e-mail/senha, redefinir senha, trocar roles vigentes e ativar/suspender; toda mutação gera AuditLog |
 | `reports/reports.controller.ts` | `GET /v1/reports/animals.csv`, `GET /v1/reports/animals/:id.json` e `.pdf` — inventário e dossiê verificável |
 | `animals/animals.controller.ts` | `GET /v1/animals?propertyId=`, `GET /v1/animals/:id/timeline` — **não existe CRUD de animal**; escrita é evento |
 | `anchor/fabric.gateway.ts` | Porta de saída Fabric. **Simulado** (`FABRIC_MODE != real`): latência + TxID derivado do hash + endorsingOrgs fixos. Trocar por `@hyperledger/fabric-gateway` na Fase 4 sem tocar no resto |

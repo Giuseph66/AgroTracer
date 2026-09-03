@@ -31,7 +31,7 @@ async function login() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       email: 'joao@santarita.example',
-      password: 'campo',
+      password: 'campo-joao',
     }),
   });
   assert.equal(response.status, 201);

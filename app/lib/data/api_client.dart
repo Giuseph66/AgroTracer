@@ -402,13 +402,19 @@ class ApiClient {
   Future<ManagedUser> createAdminUser({
     required String name,
     required String email,
+    required String password,
     required List<String> roles,
   }) async {
     final res = await _client
         .post(
           Uri.parse('$baseUrl/v1/admin/users'),
           headers: {'content-type': 'application/json', ..._headers},
-          body: jsonEncode({'name': name, 'email': email, 'roles': roles}),
+          body: jsonEncode({
+            'name': name,
+            'email': email,
+            'password': password,
+            'roles': roles,
+          }),
         )
         .timeout(const Duration(seconds: 10));
     _expectSuccess(res);
@@ -419,6 +425,7 @@ class ApiClient {
     String userId, {
     String? name,
     String? email,
+    String? password,
     String? status,
     List<String>? roles,
   }) async {
@@ -429,6 +436,7 @@ class ApiClient {
           body: jsonEncode({
             'name': ?name,
             'email': ?email,
+            'password': ?password,
             'status': ?status,
             'roles': ?roles,
           }),

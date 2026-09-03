@@ -182,6 +182,7 @@ class _AdminScreenState extends State<AdminScreen> {
       () => Services.of(context).api.createAdminUser(
         name: draft.name,
         email: draft.email,
+        password: draft.password!,
         roles: draft.roles,
       ),
       'Pessoa adicionada à operação.',
@@ -201,6 +202,7 @@ class _AdminScreenState extends State<AdminScreen> {
         user.id,
         name: draft.name,
         email: draft.email,
+        password: draft.password,
         status: draft.active ? 'ACTIVE' : 'SUSPENDED',
         roles: draft.roles,
       ),
@@ -581,12 +583,14 @@ class _UserDraft {
   const _UserDraft({
     required this.name,
     required this.email,
+    required this.password,
     required this.roles,
     required this.active,
   });
 
   final String name;
   final String email;
+  final String? password;
   final List<String> roles;
   final bool active;
 }
@@ -605,6 +609,7 @@ class _UserAccessSheetState extends State<_UserAccessSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _email;
+  late final TextEditingController _password;
   late final Set<String> _selected;
   late bool _active;
 
@@ -613,6 +618,7 @@ class _UserAccessSheetState extends State<_UserAccessSheet> {
     super.initState();
     _name = TextEditingController(text: widget.user?.name ?? '');
     _email = TextEditingController(text: widget.user?.email ?? '');
+    _password = TextEditingController();
     _selected = {...?widget.user?.roles};
     _active = widget.user?.active ?? true;
   }
@@ -682,6 +688,24 @@ class _UserAccessSheetState extends State<_UserAccessSheet> {
                   ? 'Informe um e-mail válido.'
                   : null,
             ),
+            const SizedBox(height: TaSpace.sm),
+            TextFormField(
+              controller: _password,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: editing ? 'Nova senha (opcional)' : 'Senha inicial',
+                helperText: editing
+                    ? 'Deixe em branco para manter a senha atual.'
+                    : 'A pessoa usará esta senha no primeiro acesso.',
+                prefixIcon: const Icon(Icons.lock_outline),
+              ),
+              validator: (value) {
+                if (editing && (value == null || value.isEmpty)) return null;
+                return value == null || value.length < 4
+                    ? 'Use pelo menos 4 caracteres.'
+                    : null;
+              },
+            ),
             const SizedBox(height: TaSpace.lg),
             const SectionLabel('Perfis vigentes'),
             const SizedBox(height: TaSpace.sm),
@@ -743,6 +767,7 @@ class _UserAccessSheetState extends State<_UserAccessSheet> {
       _UserDraft(
         name: _name.text.trim(),
         email: _email.text.trim(),
+        password: _password.text.isEmpty ? null : _password.text,
         roles: _selected.toList()..sort(),
         active: _active,
       ),
@@ -753,6 +778,7 @@ class _UserAccessSheetState extends State<_UserAccessSheet> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 }

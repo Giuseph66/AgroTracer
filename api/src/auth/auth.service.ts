@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { PolicyService } from './policy.service';
 import { AuthConfig, AuthPrincipal } from './auth.types';
+import { verifyPassword } from './password';
 
 type JwtClaims = Record<string, unknown> & {
   sub?: string;
@@ -42,12 +43,7 @@ export class AuthService {
     if (this.config().mode !== 'dev') {
       throw new UnauthorizedException('login local desabilitado');
     }
-    const expected = process.env.AUTH_DEV_PASSWORD ?? 'campo';
-    if (password !== expected) {
-      throw new UnauthorizedException('credenciais inválidas');
-    }
-
-    const principal = await this.findPrincipal(email);
+    const principal = await this.findPrincipal(email, password);
     if (!principal) throw new UnauthorizedException('credenciais inválidas');
     const accessToken = this.signDevToken(principal);
     return { accessToken, tokenType: 'Bearer', expiresIn: 3600, principal };
@@ -79,11 +75,15 @@ export class AuthService {
     };
   }
 
-  private async findPrincipal(subjectOrEmail: string): Promise<AuthPrincipal | undefined> {
+  private async findPrincipal(
+    subjectOrEmail: string,
+    password?: string,
+  ): Promise<AuthPrincipal | undefined> {
     const { rows } = await this.pool.query(
       `SELECT u.id AS "actorId", u.oidc_subject AS subject,
               u.name, u.email, u.organization_id AS "organizationId",
               p.name AS "propertyName",
+              u.password_hash AS "passwordHash",
               u.status, COALESCE(array_agg(b.role_code)
                 FILTER (WHERE b.role_code IS NOT NULL AND
                   b.valid_from <= now() AND (b.valid_to IS NULL OR b.valid_to > now())),
@@ -100,6 +100,10 @@ export class AuthService {
     );
     const row = rows[0];
     if (!row || row.status !== 'ACTIVE') return undefined;
+    if (password !== undefined &&
+        (!row.passwordHash || !verifyPassword(password, row.passwordHash))) {
+      return undefined;
+    }
     return {
       actorId: row.actorId,
       organizationId: row.organizationId,

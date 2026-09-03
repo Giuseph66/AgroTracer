@@ -10,18 +10,21 @@ import { v7 as uuidv7 } from 'uuid';
 import { Pool, PoolClient } from 'pg';
 
 import { AuthPrincipal } from '../auth/auth.types';
+import { hashPassword } from '../auth/password';
 import { PolicyService } from '../auth/policy.service';
 import { PG_POOL } from '../database/database.module';
 
 export type CreateUserInput = {
   name: string;
   email: string;
+  password: string;
   roles: string[];
 };
 
 export type UpdateUserInput = {
   name?: string;
   email?: string;
+  password?: string;
   status?: 'ACTIVE' | 'SUSPENDED';
   roles?: string[];
 };
@@ -66,9 +69,15 @@ export class AdminService {
       try {
         await client.query(
           `INSERT INTO core.app_user
-             (id, oidc_subject, name, email, organization_id)
-           VALUES ($1::uuid, $2, $3, $2, $4::uuid)`,
-          [id, input.email.toLowerCase(), input.name.trim(), principal.organizationId],
+             (id, oidc_subject, name, email, password_hash, organization_id)
+           VALUES ($1::uuid, $2, $3, $2, $4, $5::uuid)`,
+          [
+            id,
+            input.email.toLowerCase(),
+            input.name.trim(),
+            hashPassword(input.password),
+            principal.organizationId,
+          ],
         );
       } catch (error) {
         if (isUniqueViolation(error)) {
@@ -124,17 +133,18 @@ export class AdminService {
       }
 
       if (input.name !== undefined || input.email !== undefined ||
-          input.status !== undefined) {
+          input.password !== undefined || input.status !== undefined) {
         try {
           await client.query(
             `UPDATE core.app_user
                 SET name = COALESCE($3, name),
                     email = COALESCE($4, email),
                     oidc_subject = COALESCE($4, oidc_subject),
-                    status = COALESCE($5, status),
+                    password_hash = COALESCE($5, password_hash),
+                    status = COALESCE($6, status),
                     revoked_at = CASE
-                      WHEN $5 = 'SUSPENDED' THEN now()
-                      WHEN $5 = 'ACTIVE' THEN NULL
+                      WHEN $6 = 'SUSPENDED' THEN now()
+                      WHEN $6 = 'ACTIVE' THEN NULL
                       ELSE revoked_at
                     END
               WHERE id = $1::uuid AND organization_id = $2::uuid`,
@@ -143,6 +153,7 @@ export class AdminService {
               principal.organizationId,
               input.name?.trim(),
               input.email?.toLowerCase(),
+              input.password === undefined ? undefined : hashPassword(input.password),
               input.status,
             ],
           );
@@ -175,7 +186,13 @@ export class AdminService {
         );
       }
 
-      await this.audit(client, principal, 'USER_ACCESS_UPDATED', userId, input);
+      await this.audit(client, principal, 'USER_ACCESS_UPDATED', userId, {
+        name: input.name,
+        email: input.email,
+        status: input.status,
+        roles: input.roles,
+        passwordChanged: input.password !== undefined,
+      });
       return this.user(client, principal.organizationId, userId);
     });
   }

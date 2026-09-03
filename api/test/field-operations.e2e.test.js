@@ -40,10 +40,11 @@ function event(overrides = {}) {
 }
 
 async function login(email) {
+  const password = email === 'carla@vet.example' ? 'campo-carla' : 'campo-joao';
   const response = await fetch(`${BASE}/v1/auth/dev-login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password: 'campo' }),
+    body: JSON.stringify({ email, password }),
   });
   assert.equal(response.status, 201);
   return (await response.json()).accessToken;
