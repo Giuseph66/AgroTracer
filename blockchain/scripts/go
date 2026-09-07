@@ -3,6 +3,12 @@ set -euo pipefail
 
 # O deployCC do fabric-samples executa `go mod vendor` no host. Este wrapper
 # mantém a ferramenta fora da máquina e usa a imagem oficial do ccenv.
+#
+# GOFLAGS=-buildvcs=false porque `peer lifecycle chaincode package` chama
+# `go list`, que tenta carimbar informação de VCS lendo o .git do repositório.
+# Quando quem roda não é o dono dos arquivos — o caso do deploy, em que o
+# container de ferramentas é root e o repositório é do usuário da máquina — o
+# git recusa por "dubious ownership" e o go list morre com exit 128.
 image="hyperledger/fabric-ccenv:${FABRIC_VERSION:-2.5.16}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$script_dir/../.." && pwd)"
@@ -11,6 +17,7 @@ exec docker run --rm \
   -e GOPATH=/tmp/go \
   -e GOCACHE=/tmp/go-cache \
   -e GOMODCACHE=/tmp/go-mod-cache \
+  -e GOFLAGS=-buildvcs=false \
   -v "$repo_dir:$repo_dir" \
   -w "$PWD" \
   "$image" go "$@"
