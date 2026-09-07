@@ -97,3 +97,7 @@ exemplo de tela/
 # Vitrine do pacote de mapa: build e lock do exemplo não versionam.
 app/packages/*/example/build/
 app/packages/*/build/
+
+# Deploy: segredos do servidor e env gerado da rede Fabric.
+deploy/.env
+deploy/fabric.env

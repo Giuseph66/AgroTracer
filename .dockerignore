@@ -1,0 +1,26 @@
+# Contexto de build da imagem da API é a raiz do repositório (a imagem precisa
+# de api/ e de blockchain/dashboard/). Tudo que não entra na imagem sai daqui —
+# sem isto o contexto arrasta blockchain/.runtime (fabric-samples, centenas de MB).
+.git
+.gitignore
+**/node_modules
+api/dist
+api/.env
+blockchain/.runtime
+blockchain/.env
+app/build
+app/.dart_tool
+app/android
+app/ios
+app/web
+app/.idea
+design-review
+output
+docs
+.playwright-cli
+.playwright-mcp
+exemplo de tela
+*.jpeg
+*.png
+deploy/fabric.env
+deploy/.env

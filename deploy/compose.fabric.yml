@@ -1,0 +1,95 @@
+# Plano de emulação Fabric do TraceAgro.
+#
+# Este arquivo NÃO declara os peers, o orderer, as CAs e o CouchDB: quem os cria
+# é o `network.sh` do fabric-samples, chamado por blockchain/scripts/up.sh, com
+# os compose files oficiais do Hyperledger. Declarar uma cópia deles aqui seria
+# uma segunda verdade para topologia, material criptográfico e ciclo de vida do
+# chaincode — e as duas divergiriam no primeiro upgrade de versão.
+#
+# O que este arquivo entrega é o PLANO DE CONTROLE dessa rede: um container de
+# ferramentas com bash, curl, jq, CLI do Docker e os binários do Fabric, para
+# que a máquina servidora precise apenas de Docker. Todos os serviços são
+# tarefas de execução única (`run --rm`), não daemons.
+#
+#   cd deploy
+#   docker compose -f compose.fabric.yml run --rm fabric-up
+#   docker compose -f compose.fabric.yml run --rm fabric-status
+#   docker compose -f compose.fabric.yml run --rm fabric-env      # gera fabric.env
+#   docker compose -f compose.fabric.yml run --rm fabric-down
+#
+# ATENÇÃO — o socket do Docker é montado nos serviços abaixo. Quem consegue
+# escrever nesse socket é equivalente a root na máquina hospedeira. Use este
+# arquivo apenas em servidor de laboratório/homologação e mantenha o acesso ao
+# host restrito; a rede Fabric aqui é de desenvolvimento (Doc 14 §1) e não
+# substitui a rede e as credenciais dos parceiros.
+name: traceagro-fabric
+
+x-fabric-ops: &fabric-ops
+  build:
+    context: ..
+    dockerfile: deploy/fabric-ops.Dockerfile
+  image: traceagro/fabric-ops:${FABRIC_OPS_TAG:-local}
+  # O repositório é montado no MESMO caminho absoluto que tem no host. Os
+  # scripts do fabric-samples repassam caminhos deste sistema de arquivos para
+  # bind mounts de outros containers, e o daemon resolve esses caminhos no host:
+  # montar em /repo faria a rede subir com volumes apontando para o vazio.
+  volumes:
+    - ${REPO_DIR:?defina REPO_DIR no deploy/.env com o caminho absoluto do repositório}:${REPO_DIR}
+    - /var/run/docker.sock:/var/run/docker.sock
+  working_dir: ${REPO_DIR}
+  environment:
+    # Consumido por blockchain/scripts/go, que roda `go mod vendor` dentro da
+    # imagem oficial do ccenv em vez de exigir Go na máquina.
+    FABRIC_VERSION: ${FABRIC_VERSION:-2.5.16}
+    # Dono do material criptográfico depois do bootstrap. Ver fabric-up.
+    FABRIC_CRYPTO_UID: ${FABRIC_CRYPTO_UID:-1000}
+  # Rede do host, por duas razões: o `peer` CLI do deployCC fala com os nós em
+  # localhost:7051/9051 (portas publicadas pela test-network), e assim o Compose
+  # não precisa criar uma rede só para uma tarefa de execução única.
+  network_mode: host
+  # Roda como root porque precisa do socket do Docker; em troca, o que for
+  # escrito em blockchain/.runtime/ fica com dono root no host. Faça toda a
+  # manutenção dessa pasta por aqui (fabric-down, fabric-shell).
+  user: root
+  profiles: ['ops']
+
+services:
+  # Baixa binários/imagens do Fabric, sobe a test-network com CAs e CouchDB,
+  # cria o canal e instala o chaincode traceagro-cc. Idempotente: se a rede já
+  # está de pé, só reimplanta o chaincode.
+  fabric-up:
+    <<: *fabric-ops
+    # O chown no fim não é cosmético: a rede sobe por este container, que roda
+    # como root, e a chave privada de User1@org1 nasce 0600 root:root. O
+    # container da API roda como o usuário `node` (uid 1000) e não conseguiria
+    # lê-la — FABRIC_MODE=real falharia na conexão, não no boot.
+    command:
+      - >-
+        blockchain/scripts/up.sh &&
+        chown -R "$$FABRIC_CRYPTO_UID":"$$FABRIC_CRYPTO_UID"
+        blockchain/.runtime/fabric-samples/test-network/organizations
+
+  fabric-status:
+    <<: *fabric-ops
+    command: ['blockchain/scripts/status.sh']
+
+  # Derruba containers, volumes e artefatos da rede local.
+  fabric-down:
+    <<: *fabric-ops
+    command: ['blockchain/scripts/down.sh']
+
+  # Escreve deploy/fabric.env com os caminhos que a IDENTIDADE Fabric tem
+  # DENTRO do container da API (/fabric/organizations/...). O nome do arquivo de
+  # chave é aleatório a cada bootstrap, então este passo se repete a cada
+  # fabric-up que recrie a rede.
+  fabric-env:
+    <<: *fabric-ops
+    command: ['deploy/fabric-env.sh > deploy/fabric.env && cat deploy/fabric.env']
+
+  # Sessão interativa com peer/osnadmin no PATH, para depurar a rede:
+  #   docker compose -f compose.fabric.yml run --rm fabric-shell
+  fabric-shell:
+    <<: *fabric-ops
+    command: ['source blockchain/scripts/lib.sh && fabric_path && exec bash']
+    stdin_open: true
+    tty: true

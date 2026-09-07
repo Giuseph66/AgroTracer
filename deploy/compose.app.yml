@@ -1,0 +1,122 @@
+# Plano de aplicação do TraceAgro: Postgres + API + túnel Cloudflare.
+#
+#   cd deploy
+#   cp .env.example .env      # e preencha os segredos
+#   docker compose -f compose.app.yml up -d --build
+#
+# Nada aqui publica porta no host: o único caminho de entrada é o túnel
+# Cloudflare, que abre conexão de dentro para fora. O Postgres não é alcançável
+# nem pela rede local — só pelos containers desta rede.
+name: traceagro-app
+
+services:
+  postgres:
+    # Imagem própria: o schema entra por COPY, não por bind mount. Ver
+    # postgres.Dockerfile.
+    build:
+      context: ..
+      dockerfile: deploy/postgres.Dockerfile
+    image: traceagro/postgres:${DB_IMAGE_TAG:-local}
+    container_name: traceagro-app-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-traceagro}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?defina POSTGRES_SUPERUSER_PASSWORD no deploy/.env}
+      POSTGRES_DB: ${PGDATABASE:-traceagro}
+      # Lidos pelo zz-app-role-password.sh: a migração 002 cria o papel da
+      # aplicação com a senha de laboratório em texto no SQL, e ela não pode
+      # sobreviver a um servidor exposto.
+      APP_DB_USER: ${PGUSER:-traceagro_app}
+      APP_DB_PASSWORD: ${PGPASSWORD:?defina PGPASSWORD no deploy/.env}
+    volumes:
+      # Os scripts de /docker-entrypoint-initdb.d vêm na imagem e rodam em ordem
+      # alfabética, SOMENTE quando este volume está vazio: 001..010 e depois zz_.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_SUPERUSER:-traceagro} -d ${PGDATABASE:-traceagro}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [traceagro]
+    # Para inspecionar o banco da própria máquina, descomente. Nunca troque
+    # por "5433:5432": isso abriria o Postgres para a rede inteira.
+    # ports:
+    #   - '127.0.0.1:5433:5432'
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    image: traceagro/api:${API_IMAGE_TAG:-local}
+    container_name: traceagro-app-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: true
+      # Gerado por ./fabric-env.sh depois que a emulação Fabric sobe. Enquanto
+      # não existir, a API roda com FABRIC_MODE=simulated (valor do .env).
+      - path: fabric.env
+        required: false
+    environment:
+      PORT: '4009'
+      PGHOST: postgres
+      PGPORT: '5432'
+    # A emulação Fabric sobe em outro projeto Compose (compose.fabric.yml) e
+    # publica o peer0.org1 em 7051 no host. host.docker.internal alcança o host
+    # sem acoplar as duas redes; o nome TLS continua vindo de
+    # FABRIC_TLS_SERVER_NAME, então o certificado do peer confere.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      # Certificados e chave da identidade User1@org1, gerados pela rede Fabric.
+      # Se a emulação nunca subiu, o diretório é criado vazio e ignorado.
+      - ../blockchain/.runtime/fabric-samples/test-network/organizations:/fabric/organizations:ro
+    networks: [traceagro]
+    # Sem "ports": quem fala com a API é o cloudflared, pelo nome de serviço.
+
+  cloudflared:
+    # Fixe uma tag (ex.: cloudflare/cloudflared:2026.8.0) antes de ir para
+    # produção — "latest" troca a versão do túnel num restart qualquer.
+    image: cloudflare/cloudflared:latest
+    container_name: traceagro-app-cloudflared
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      # Token do túnel criado no painel Zero Trust. Ele já carrega as rotas
+      # (hostname público -> http://api:4009), então não há arquivo de config.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?defina CLOUDFLARE_TUNNEL_TOKEN no deploy/.env}
+    networks: [traceagro]
+
+  # Perfil "harden": roda uma vez, com a imagem da API (tem node e o módulo pg),
+  # para trocar a senha da conta administrativa semeada e desativar o login das
+  # demais contas de laboratório.
+  #   docker compose -f compose.app.yml --profile harden run --rm harden-accounts
+  harden-accounts:
+    image: traceagro/api:${API_IMAGE_TAG:-local}
+    profiles: ['harden']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+    volumes:
+      - ./harden-accounts.cjs:/opt/harden-accounts.cjs:ro
+    entrypoint: ['node', '/opt/harden-accounts.cjs']
+    networks: [traceagro]
+
+volumes:
+  pgdata:
+
+networks:
+  traceagro:
+    driver: bridge
