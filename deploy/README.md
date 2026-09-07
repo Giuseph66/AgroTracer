@@ -194,3 +194,8 @@ zero no futuro já nasça com ela.
 - `blockchain/.runtime/` é escrito pelo container de ferramentas, que roda como
   root. Faça a manutenção dessa pasta pelos serviços de `compose.fabric.yml`
   (`fabric-down`, `fabric-shell`), não à mão.
+- Subir a stack de aplicação antes da Fabric faz o Docker criar
+  `blockchain/.runtime/.../test-network/organizations` vazio, por causa do bind
+  mount da identidade. Isso é esperado e o `bootstrap.sh` lida com ele; se você
+  já tiver um `.runtime` pela metade de uma tentativa antiga, apague a pasta e
+  rode `fabric-up` de novo.

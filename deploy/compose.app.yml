@@ -72,7 +72,10 @@ services:
       - 'host.docker.internal:host-gateway'
     volumes:
       # Certificados e chave da identidade User1@org1, gerados pela rede Fabric.
-      # Se a emulação nunca subiu, o diretório é criado vazio e ignorado.
+      # Se a emulação ainda não subiu, o Docker materializa este caminho vazio.
+      # blockchain/scripts/bootstrap.sh trata esse caso: sem ele, o diretório
+      # pré-criado fazia o install-fabric.sh pular o clone do fabric-samples e a
+      # rede nunca subia.
       - ../blockchain/.runtime/fabric-samples/test-network/organizations:/fabric/organizations:ro
     networks: [traceagro]
     # Sem "ports": quem fala com a API é o cloudflared, pelo nome de serviço.
