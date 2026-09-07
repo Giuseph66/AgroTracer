@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- O template do Flutter declara INTERNET só em src/debug e src/profile.
+         O build release funde apenas este manifesto, então sem a linha abaixo o
+         APK sai sem acesso à rede: `flutter run` fala com a API e o APK
+         instalado falha em toda chamada, antes mesmo de sair do aparelho. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Botão "minha localização" na tela de Áreas (traceagro_map/geolocator).
          COARSE basta pra situar o operador no piquete certo; FINE é pedido
          quando disponível para o círculo de precisão ficar mais fiel. -->
