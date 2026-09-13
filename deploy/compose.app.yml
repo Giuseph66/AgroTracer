@@ -94,6 +94,10 @@ services:
       # Token do túnel criado no painel Zero Trust. Ele já carrega as rotas
       # (hostname público -> http://api:4009), então não há arquivo de config.
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?defina CLOUDFLARE_TUNNEL_TOKEN no deploy/.env}
+      # A rede local só tem rota IPv4 até o gateway quebrada (ARP FAILED); o
+      # edge do Cloudflare Tunnel também responde em IPv6, então força essa
+      # versão em vez de "auto" para não ficar tentando IPv4 morto.
+      TUNNEL_EDGE_IP_VERSION: '6'
     networks: [traceagro]
 
   # Perfil "harden": roda uma vez, com a imagem da API (tem node e o módulo pg),
@@ -123,3 +127,10 @@ volumes:
 networks:
   traceagro:
     driver: bridge
+    # Habilitado porque o link IPv4 do host está com ARP FAILED até o gateway
+    # da rede local; o cloudflared precisa de IPv6 para sair até o edge do
+    # Cloudflare Tunnel enquanto isso não é corrigido na camada 2.
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:cafe:babe::/64
