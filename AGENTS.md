@@ -86,6 +86,20 @@ Espaço: 4/8/16/24/32/48 (`TaSpace.xs..xxl`). Raios: 10/16/24 (`TaRadius`).
 - Não criar telas inteiras por perfil: variar por configuração e reaproveitar
   o mesmo construtor de evento (Doc 20 §9).
 - Seleção de modo: `core/widgets/ui_profile_selector.dart` — reusar.
+- **Toda ação nova do Início nasce como `UiAction`** em
+  `features/home/home_actions.dart`, com `UiAccess` (permissões **e** papéis
+  do Doc 7, mais `legacyRoles` explícitos — nunca copiar `roles`). Teste de
+  matriz papel × perfil em `test/home_profiles_test.dart` deve ser atualizado
+  junto.
+- **Proibida rolagem horizontal para função principal.** Grades usam
+  `EqualHeightGrid` (altura acompanha o texto ampliado) e blocos usam
+  `ProfileActionTile` (ícone + palavra, `Semantics` com toque).
+- Estado de envio em palavras de trabalho: `TaskStatusCard` ("Tudo enviado",
+  "esperando internet", "precisa da sua atenção"). Vocabulário técnico
+  (hash, eventId, TxID, sequência) só em Gestão/Técnico ou atrás de
+  "Detalhes técnicos".
+- Rótulo de botão é verbo + objeto ("Registrar nascimento", "Tentar enviar"),
+  nunca "Continuar"/"Processar".
 
 ---
 

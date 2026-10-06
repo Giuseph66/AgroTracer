@@ -218,10 +218,11 @@ governança e políticas definitivas da Fase 4.
 
 ## B14 — Perfis de interface (UX para baixa familiaridade digital)
 
-**Estado: em andamento.** Entregas 1 (auditoria) e 2 (fundação: perfil por
-usuário, perfil automático por papel, seletor em Ajustes) concluídas — ver
-`docs/20-PERFIS-DE-INTERFACE.md` §15. Próxima: Entrega 3 (Início por perfil e
-filtro de ações por permissão).
+**Estado: em andamento.** Entregas 1 (auditoria), 2 (fundação: perfil por
+usuário, perfil automático por papel, seletor em Ajustes) e 3 (Início por
+perfil, filtro de ações por permissão, shell, Alertas) concluídas — ver
+`docs/20-PERFIS-DE-INTERFACE.md` §15. Próxima: Entrega 4 (fluxos de campo:
+Leitura, Vacinação, Nascimento, Troca de brinco).
 
 - **Pedido**: apresentar as mesmas funções de formas diferentes por perfil
   (Gestão, Campo, Operador, Técnico) sem alterar permissões, eventos ou regras.

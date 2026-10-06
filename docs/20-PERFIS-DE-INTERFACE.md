@@ -1,7 +1,7 @@
 # Documento 20 — Perfis de Interface
 
-Data de referência: 2026-10-06. Estado: **Entrega 2 (fundação) concluída** —
-ver §15. Decisões da §14 aprovadas pelo responsável em 2026-10-06, com D5
+Data de referência: 2026-10-06. Estado: **Entrega 3 (Início + navegação)
+concluída** — ver §15. Decisões da §14 aprovadas pelo responsável em 2026-10-06, com D5
 revisada. Este documento cresce a cada entrega: as seções 9 a 13 passam de
 "proposta" para "implementado" conforme o Doc 18 for atualizado.
 
@@ -163,16 +163,17 @@ a reencontra).
 | Função (rótulo no Operador) | Gestão | Campo | Operador | Técnico |
 |-----------------------------|:-----:|:-----:|:--------:|:-------:|
 | Ler brinco | ○ | ● | ● | ○ |
-| Pesagem (**Pesar**) | ○ | ● | ○ | — |
+| Pesagem (**Pesar**) | ○ | ● | ● | ○ |
 | Animais (**Ver animal**) | ● | ○ | ○ | ○ |
 | Vacinação (**Vacinar**) | ○ | ○ | ○ | ● |
 | Nascimento (**Registrar nascimento**) | ○ | ○ | ○ | — |
 | Piquetes / Áreas (**Mover animais**) | ○ | ○ | ○ | ○ |
 | Embarques | ○ | ○ | ○ | — |
-| Alertas | ● | ○ | faixa no topo | ● |
-| Pendências | faixa + aba | bloco | bloco + faixa | aba |
-| Relatórios / exportar | ○ | — | — | ○ |
+| Alertas | ● | ○ | — (estado de envio no topo) | ● |
+| Pendências | cartão (se houver) + aba "Sincronizar" | cartão sempre + aba "Pendências" | bloco + cartão sempre + aba "Pendências" | cartão (se houver) + aba "Sincronizar" |
+| Relatórios / exportar | ○ (Entrega 5) | — | — | ○ (Entrega 5) |
 | Central de acesso | ○ | — | — | — |
+| Botão central "Ler" | "Ler" | "Ler brinco" | "Ler brinco" | "Ler" — some sem permissão de leitura |
 | Cartão "Hoje" (números) | sim | não | não | sim (carências) |
 
 No Operador o conjunto completo cabe em 2 colunas × 4 linhas em 412×915 sem
@@ -204,9 +205,11 @@ sessão. Havendo conflito, vale o mais restritivo. Uma permissão ampla como
 `field.operate` **não** é lida como autorização implícita para todo ato de
 campo. Nunca por perfil.
 
-`UiAction.access` = `anyPermission` **e** `roles` (Doc 7). Sessão antiga com
-`permissions` vazio: a verificação de permissão é substituída pela de papel
-(papéis também vêm da API); sem papel, nada aparece.
+`UiAccess` = `permissions` (qualquer uma) **e** `roles` (Doc 7). Sessão antiga
+com `permissions` vazio: passa só quem está em `legacyRoles`, os papéis que já
+recebem a permissão **por padrão** no catálogo da API. Não se reaproveita
+`roles` aqui — OPER está em Vacinação por delegação e, numa sessão sem lista,
+ganharia "Vacinar" sem `health.apply` (achado por teste durante a Entrega 3).
 
 | Ação | `anyPermission` | `roles` (Doc 7 §3) | Observação |
 |------|-----------------|--------------------|------------|
@@ -217,7 +220,7 @@ campo. Nunca por perfil.
 | Vacinação | `health.apply` | OPER, TECN, VETE | OPER é "A (delegação)": precisa também de `health.apply` (D4) |
 | Troca de brinco | `field.operate` | OPER, PROD, TECN | aprovação por 2º usuário é do servidor (Doc 7 §4.4) |
 | Embarques — expedir | `field.operate` | OPER, PROD, TECN | |
-| Embarques — ver/receber | `field.operate`, `shipment.receive`, `shipment.transport` | OPER, PROD, TECN, TRAN, FRIG | |
+| Embarques — ver/receber | `field.operate`, `shipment.receive`, `shipment.transport` | OPER, PROD, TECN, TRAN, FRIG | Ainda não usada: a tela atual mistura ver e expedir, então o bloco segue a regra de expedir até a Entrega 6 |
 | Animais (consulta) | — | todos exceto PUBL | D2: não existe permissão de leitura |
 | Exportar inventário/dossiê | `reports.export` | PROD, TECN, VETE, CERT, FRIG, AUDI, ADMO, ADMP | hoje sem gate na tela de Animais |
 | Central de acesso | `users.manage` | ADMO, ADMP | já existe: `canManageUsers` |
@@ -400,7 +403,8 @@ certo").
 |---|---------|--------|
 | 1 | Auditoria | Concluída (2026-10-06) |
 | 2 | Fundação | Concluída (2026-10-06) — abaixo |
-| 3–7 | Início, fluxos, consulta, operações, revisão | Pendentes |
+| 3 | Início + navegação | Concluída (2026-10-06) — §15.2 |
+| 4–7 | Fluxos de campo, consulta, operações, revisão | Pendentes |
 
 ### 15.1 Entrega 2 — o que existe
 
@@ -430,3 +434,59 @@ certo").
   Início atual: ADMO vê Pesagem sem `field.operate`; "Áreas" cortado na
   rolagem), `01`/`02`/`03-settings-mode-*` (412, 1024, 360). Troca para
   Operador refletiu na hora e sobreviveu a recarregar a página.
+
+### 15.2 Entrega 3 — o que existe
+
+Motivação registrada: com só a fundação, trocar o modo em Ajustes não mudava
+nada visível — o responsável testou e relatou isso. A Entrega 3 é a primeira
+em que o modo muda o app.
+
+- `core/ui_profile/ui_access.dart` — `UiAccess` (permissões ∩ papéis do Doc 7,
+  `legacyRoles` para sessão antiga). `AuthSession` ganhou só `canAny` e
+  `hasAnyRole` (leitura).
+- `core/ui_profile/ui_action.dart` — `UiAction` (rótulo por perfil, ordem e
+  destaque por perfil, tela ou aba) e `homeActionsFor`, que filtra pela sessão
+  e ordena pelo perfil. `ShellTab` + `shell_tabs.dart` deixam um bloco trocar
+  de aba ("Ver animal" → aba Animais) sem empilhar outra cópia da tela.
+- `core/ui_profile/ui_profile_config.dart` — o que muda por perfil: título da
+  seção, altura/ícone/rótulo dos blocos, cartão "Hoje", cartão de envio sempre
+  visível, rótulo da aba e do botão central.
+- `core/widgets/equal_height_grid.dart` (2/3/4 colunas, linhas de mesma
+  altura, cresce com o texto; também usada no seletor),
+  `profile_action_tile.dart` (ícone + palavra, `Semantics` com toque),
+  `task_status_card.dart` ("Tudo enviado", "N registros esperando internet",
+  "N precisam da sua atenção" com "Tentar enviar"/"Resolver").
+- `features/home/home_actions.dart` — catálogo das 10 ações com a regra da §8;
+  `home_screen.dart` monta o Início a partir dele (uma tela para os quatro
+  perfis). Saudação pela hora do dia; título "Hoje na <propriedade>" vindo da
+  sessão (antes fixo em "Santa Rita").
+- `features/alerts/alerts_screen.dart` — Alertas (D3): carência ativa,
+  registros recusados e embarques esperando recebimento; distingue "nenhum
+  alerta" de "rebanho ainda não baixado".
+- `main.dart` — shell: aba "Pendências" (Campo/Operador) ou "Sincronizar";
+  botão central "Ler brinco"/"Ler" só para quem pode ler brinco (sem ele a barra
+  fica sem recorte). `sync_screen.dart` usa o mesmo nome da aba no título.
+- `areas_screen.dart` — `startInList`: Campo e Operador abrem os piquetes na
+  lista, sem passar pelo mapa.
+- Correções achadas no caminho, com regressão: cabeçalho do Início estourava
+  com texto ampliado (pílula agora desce de linha; `ConnectivityPill` corta com
+  reticências); "pesagens registradas hoje" contava pesagens de dias anteriores
+  ainda na fila; a linha de conflitos do cartão "Hoje" abria a tela de envio sem
+  `Scaffold` (removida: o cartão de envio já cobre).
+- Testes: `test/home_profiles_test.dart` (19) — matriz papel × perfil contra a
+  §8 para os 11 papéis, OPER em Gestão sem admin/vacina, delegação de vacina,
+  sessão antiga, ≤ 2 destaques, Início de Operador/Gestão/Técnico, troca ao vivo,
+  zero rolagem horizontal, semântica dos blocos, 360/412/800/1280 com texto 1,0
+  e 1,6 e contagem de colunas, shell por perfil, sem botão central para VETE,
+  "Ver animal" troca de aba. `test/support/test_session.dart` abre sessões
+  como a API abriria. `widget_test.dart` passou a abrir sessão de OPER.
+- Capturas (web, API de laboratório, contas OPER/PROD/VETE do banco local):
+  `design-review/profiled-ui/10`–`20` — Operador, Gestão (PROD), Técnico (VETE),
+  a mesma conta OPER em Campo e Gestão, Operador em 360/800/1280, troca feita
+  em Ajustes refletindo no Início sem recarregar, Pendências e Alertas.
+
+Ainda **não** muda com o perfil (Entregas 4–6): Leitura, Pesagem, Vacinação,
+Nascimento, Troca de brinco, Animais, Ficha, Piquetes por dentro, Embarques e
+Pendências por dentro. Critério "mover animais sem editor de mapas": Operador
+chega à lista de piquetes direto, mas mover ainda passa pela folha do piquete
+— a tela "Escolher piquete" (D6) é da Entrega 5.

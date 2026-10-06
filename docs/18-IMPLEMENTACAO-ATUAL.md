@@ -26,7 +26,7 @@ Resultados de teste na data de referência:
 |-------|-----------|
 | `api npm test` (canonicalização) | 5/5 |
 | `api npm run test:e2e` (ingestão, autenticação, RBAC, administração e fluxo de campo contra Postgres real) | 17/17 |
-| `app flutter test` (canonical, outbox, sessão, perfis de interface, widgets e cobertura de módulos) | 78/78 (2026-10-06) |
+| `app flutter test` (canonical, outbox, sessão, perfis de interface, Início por perfil, widgets e cobertura de módulos) | 97/97 (2026-10-06) |
 | `flutter analyze` | limpo |
 | Playwright visível ponta a ponta | login obrigatório, logout, central de acesso desktop e mobile 412×915 verificados em `output/playwright/` |
 
@@ -117,11 +117,12 @@ Estrutura em `app/lib/`:
 | `core/sync/sync_service.dart` | Push em lote (500), backoff 5s→15min, ping de conectividade, adoção de sequência no boot, repescagem de provas de âncora a cada 8s, clock skew via header Date |
 | `core/auth/auth_session.dart` | Login obrigatório, validação `/auth/me`, expiração local do JWT, roles/permissões persistidas e logout |
 | `core/services.dart` | `AppServices` + InheritedWidget `Services`; sessão, identidade, sync e `apiBaseUrl` via `--dart-define=TRACEAGRO_API` |
-| `core/ui_profile/` | Perfis de interface (Doc 20): `UiProfile`, perfil automático por papel, `UiPreferences` por `actorId` (`traceagro.ui.profile.<actorId>`) e `UiProfileScope` acima do `MaterialApp`. Só organiza telas — **nunca concede permissão** |
+| `core/ui_profile/` | Perfis de interface (Doc 20): `UiProfile`, perfil automático por papel, `UiPreferences` por `actorId` (`traceagro.ui.profile.<actorId>`), `UiProfileScope` acima do `MaterialApp`, `UiProfileConfig`, `UiAction`/`UiAccess` (filtro de ação). Só organiza telas — **nunca concede permissão** |
 | `data/api_client.dart` | Leitura: animais, timeline, catálogo, áreas, embarques, genealogia, inventário CSV e dossiê; conversão wire→domínio |
 | `data/herd_repository.dart` | Rebanho/cache local persistido via SharedPreferences e atualizado pela API; `TimelineResult` distingue vazio de inacessível; **zero dados de exemplo** |
 | `domain/models.dart` | Animal, TraceEvent, SyncState (Doc 8), LifecycleStatus, EventKind com `wireName` |
-| `features/home/` | Início: header pasture, resumo de fila, grade de ações, "Hoje na fazenda" |
+| `features/home/` | Início único para os 4 perfis de interface: cartão de envio, grade de blocos montada de `home_actions.dart` (filtrada por permissão ∩ Doc 7, Doc 20 §8), "Hoje na <propriedade>" em Gestão/Técnico |
+| `features/alerts/` | Alertas só com dados reais: carência ativa, registros recusados, embarques esperando recebimento |
 | `features/read/` | Leitura RFID **simulada** (3 estados: aguardando/identificado/desconhecido) |
 | `features/weighing/` | UC-02 pesagem no brete: lê→estabiliza→confirma→libera; alerta de variação >30%; entrada manual com flag; fita da sessão com estado de sync por animal |
 | `features/animal/` | Ficha: brinco grande, derivados, banner de carência, linha do tempo com SyncBadge por evento |
