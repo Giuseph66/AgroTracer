@@ -49,6 +49,8 @@ class AuthSession extends ChangeNotifier {
   bool get isAuthenticated => accessToken != null;
   String? get token => accessToken;
   bool can(String permission) => permissions.contains(permission);
+  bool canAny(Iterable<String> wanted) => wanted.any(permissions.contains);
+  bool hasAnyRole(Iterable<String> wanted) => wanted.any(roles.contains);
 
   /// Perfis antigos podem estar persistidos sem a lista de permissões que foi
   /// acrescentada ao RBAC. Eles só liberam a entrada visual; a API continua

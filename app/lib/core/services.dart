@@ -30,7 +30,10 @@ const apiBaseUrl = String.fromEnvironment(
 
 /// Serviços de longa duração do app, criados uma vez e injetados na árvore.
 class AppServices {
-  AppServices() : outbox = Outbox(), auth = AuthSession(baseUrl: apiBaseUrl) {
+  /// [session] só é injetada em teste; o app usa a sessão contra [apiBaseUrl].
+  AppServices({AuthSession? session})
+    : outbox = Outbox(),
+      auth = session ?? AuthSession(baseUrl: apiBaseUrl) {
     ui = UiPreferences(auth);
     api = ApiClient(
       baseUrl: apiBaseUrl,
