@@ -1,31 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:traceagro_app/core/services.dart';
-import 'package:traceagro_app/core/theme/theme.dart';
 import 'package:traceagro_app/features/home/home_screen.dart';
 import 'package:traceagro_app/features/sync/sync_screen.dart';
 import 'package:traceagro_app/domain/models.dart';
 
+import 'support/test_session.dart';
+
 /// As telas montam com os serviços reais, mas sem rede: é exatamente o estado
 /// em que o app passa a maior parte do tempo no campo.
-Widget _wrap(Widget child, AppServices services) => Services(
-      services: services,
-      child: MaterialApp(theme: buildTaTheme(), home: Scaffold(body: child)),
-    );
+Widget _wrap(Widget child, AppServices services) =>
+    appWith(services, Scaffold(body: child));
 
 void main() {
   late AppServices services;
 
-  setUp(() => services = AppServices());
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    // Operador de curral recém-logado (perfil automático: Operador).
+    services = await signedInServices(['OPER']);
+  });
   tearDown(() => services.dispose());
 
   testWidgets('início mostra saudação e as ações de campo', (tester) async {
     await tester.pumpWidget(_wrap(const HomeScreen(), services));
     await tester.pump();
 
-    expect(find.textContaining('Bom dia'), findsOneWidget);
-    expect(find.text('Ler animal'), findsOneWidget);
-    expect(find.text('Pesagem'), findsOneWidget);
+    expect(find.textContaining(', João'), findsOneWidget);
+    expect(find.text('Ler brinco'), findsOneWidget);
+    expect(find.text('Pesar'), findsOneWidget);
   });
 
   testWidgets('sem rede, a sincronização explica onde os dados estão',

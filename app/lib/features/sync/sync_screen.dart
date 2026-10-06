@@ -7,6 +7,8 @@ import '../../core/services.dart';
 import '../../core/sync/outbox.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/tokens.dart';
+import '../../core/ui_profile/ui_profile_config.dart';
+import '../../core/ui_profile/ui_profile_scope.dart';
 import '../../core/widgets/common.dart';
 import '../../domain/models.dart';
 
@@ -31,7 +33,11 @@ class SyncScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(TaSpace.md),
             children: [
-              Text('Sincronização', style: t.displayMedium),
+              // Mesmo nome da aba que trouxe a pessoa até aqui.
+              Text(
+                UiProfileScope.profileOf(context).config.pendingScreenTitle,
+                style: t.displayMedium,
+              ),
               const SizedBox(height: TaSpace.md),
               ListenableBuilder(
                 listenable: services.sync,

@@ -4,9 +4,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/services.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/tokens.dart';
+import 'core/ui_profile/shell_tabs.dart';
+import 'core/ui_profile/ui_action.dart';
+import 'core/ui_profile/ui_profile_config.dart';
 import 'core/ui_profile/ui_profile_scope.dart';
 import 'features/auth/login_screen.dart';
 import 'features/animals/animals_screen.dart';
+import 'features/home/home_actions.dart';
 import 'features/home/home_screen.dart';
 import 'features/read/read_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -103,6 +107,9 @@ class AuthGate extends StatelessWidget {
 
 /// Navegação de campo: 4 destinos + botão central "Ler" — o gesto mais
 /// frequente do curral tem o maior alvo da interface.
+///
+/// A estrutura é a mesma em todo perfil (Doc 20 §9); mudam os rótulos e o
+/// botão central só aparece para quem pode ler brinco.
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -120,83 +127,135 @@ class _AppShellState extends State<AppShell> {
     SettingsScreen(),
   ];
 
+  void _select(ShellTab tab) => setState(() => index = tab.index);
+
   @override
   Widget build(BuildContext context) {
-    final outbox = Services.of(context).outbox;
+    final services = Services.of(context);
+    final outbox = services.outbox;
+    final config = UiProfileScope.profileOf(context).config;
+    final canRead = readAction.access.allows(services.auth);
 
-    return Scaffold(
-      body: IndexedStack(index: index, children: _screens),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: SizedBox(
-        width: 72,
-        height: 72,
-        child: FloatingActionButton(
-          backgroundColor: TaColors.tagYellow,
-          foregroundColor: TaColors.stamp,
-          shape: const CircleBorder(
-              side: BorderSide(color: TaColors.tagYellowDeep, width: 2)),
-          onPressed: () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const ReadScreen())),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.sensors, size: 28),
-              Text('Ler',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: StreamBuilder<void>(
-        stream: outbox.changes,
-        builder: (context, _) => BottomAppBar(
-          color: TaColors.pasture,
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 8,
-          height: 68,
-          padding: EdgeInsets.zero,
-          child: Row(
-            children: [
-              _navItem(0, Icons.home_outlined, Icons.home, 'Início'),
-              _navItem(1, Icons.badge_outlined, Icons.badge, 'Animais'),
-              const SizedBox(width: 72), // vão do FAB
-              _navItem(2, Icons.sync_outlined, Icons.sync, 'Sincronizar',
-                  badgeCount: outbox.conflictCount),
-              _navItem(3, Icons.settings_outlined, Icons.settings, 'Ajustes'),
-            ],
+    return ShellTabs(
+      select: _select,
+      child: Scaffold(
+        body: IndexedStack(index: index, children: _screens),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: !canRead
+            ? null
+            : Semantics(
+                button: true,
+                label: readAction.label,
+                excludeSemantics: true,
+                onTap: _openRead,
+                child: SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: FloatingActionButton(
+                    backgroundColor: TaColors.tagYellow,
+                    foregroundColor: TaColors.stamp,
+                    shape: const CircleBorder(
+                      side: BorderSide(color: TaColors.tagYellowDeep, width: 2),
+                    ),
+                    onPressed: _openRead,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.sensors, size: 28),
+                        Text(
+                          config.readFabLabel,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            height: 1.1,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+        bottomNavigationBar: StreamBuilder<void>(
+          stream: outbox.changes,
+          builder: (context, _) => BottomAppBar(
+            color: TaColors.pasture,
+            shape: canRead ? const CircularNotchedRectangle() : null,
+            notchMargin: 8,
+            height: 68,
+            padding: EdgeInsets.zero,
+            child: Row(
+              children: [
+                _navItem(ShellTab.home, Icons.home_outlined, Icons.home, 'Início'),
+                _navItem(
+                  ShellTab.animals,
+                  Icons.badge_outlined,
+                  Icons.badge,
+                  'Animais',
+                ),
+                if (canRead) const SizedBox(width: 76), // vão do FAB
+                _navItem(
+                  ShellTab.pending,
+                  Icons.pending_actions_outlined,
+                  Icons.pending_actions,
+                  config.pendingTabLabel,
+                  badgeCount: outbox.conflictCount,
+                ),
+                _navItem(
+                  ShellTab.settings,
+                  Icons.settings_outlined,
+                  Icons.settings,
+                  'Ajustes',
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _navItem(int i, IconData icon, IconData active, String label,
-      {int badgeCount = 0}) {
-    final selected = index == i;
+  void _openRead() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const ReadScreen()));
+
+  Widget _navItem(
+    ShellTab tab,
+    IconData icon,
+    IconData active,
+    String label, {
+    int badgeCount = 0,
+  }) {
+    final selected = index == tab.index;
     return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => index = i),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Badge(
-              isLabelVisible: badgeCount > 0,
-              backgroundColor: TaColors.clay,
-              label: Text('$badgeCount'),
-              child: Icon(selected ? active : icon,
-                  color:
-                      selected ? TaColors.tagYellow : TaColors.paperInkSoft),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? TaColors.tagYellow : TaColors.paperInkSoft,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: InkWell(
+          onTap: () => _select(tab),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Badge(
+                isLabelVisible: badgeCount > 0,
+                backgroundColor: TaColors.clay,
+                label: Text('$badgeCount'),
+                child: Icon(
+                  selected ? active : icon,
+                  color: selected ? TaColors.tagYellow : TaColors.paperInkSoft,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? TaColors.tagYellow : TaColors.paperInkSoft,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -16,7 +16,11 @@ import 'area_mapping.dart';
 /// lista continua disponível para comparar números lado a lado e para alcançar
 /// os piquetes que ainda não têm contorno desenhado.
 class AreasScreen extends StatefulWidget {
-  const AreasScreen({super.key});
+  const AreasScreen({super.key, this.startInList = false});
+
+  /// Abre na lista de piquetes. Quem só vai mover animais não precisa
+  /// passar pelo mapa nem ver o editor de contorno (Doc 20 §7.1).
+  final bool startInList;
 
   @override
   State<AreasScreen> createState() => _AreasScreenState();
@@ -27,7 +31,7 @@ enum _ViewMode { map, list }
 class _AreasScreenState extends State<AreasScreen> {
   final GlobalKey<AreaMapViewState> _mapKey = GlobalKey();
 
-  _ViewMode mode = _ViewMode.map;
+  late _ViewMode mode = widget.startInList ? _ViewMode.list : _ViewMode.map;
   String? selectedId;
   TileSource tiles = TileSource.satellite;
   bool locating = false;
