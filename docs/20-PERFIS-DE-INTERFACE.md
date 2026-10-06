@@ -1,9 +1,9 @@
 # Documento 20 — Perfis de Interface
 
-Data de referência: 2026-10-06. Estado: **Entrega 1 (auditoria e proposta)**.
-Nenhum código do app mudou nesta entrega. Este documento cresce a cada entrega:
-as seções 9 a 13 passam de "proposta" para "implementado" conforme o Doc 18 for
-atualizado.
+Data de referência: 2026-10-06. Estado: **Entrega 2 (fundação) concluída** —
+ver §15. Decisões da §14 aprovadas pelo responsável em 2026-10-06, com D5
+revisada. Este documento cresce a cada entrega: as seções 9 a 13 passam de
+"proposta" para "implementado" conforme o Doc 18 for atualizado.
 
 Leia antes: `AGENTS.md`, Doc 7 (matriz de acesso), Doc 18 (o que existe).
 
@@ -197,26 +197,48 @@ rolar. Troca de brinco não tem bloco próprio em nenhum perfil: vive na ficha
 
 ## 8. Permissões: espelho de UX
 
-`UiAction.access` combina `anyPermission` (preferencial) e `fallbackRoles`
-(usado **somente** quando a sessão tem `permissions` vazio, caso de sessão
-antiga). Nunca por perfil.
+**Regra (D5, aprovada):** uma ação só aparece quando **as duas fontes de
+autorização concordam** — o catálogo de permissões da API (`policy.service.ts`,
+vindo da sessão) **e** a coluna "C"/"V" do Doc 7 para algum papel vigente da
+sessão. Havendo conflito, vale o mais restritivo. Uma permissão ampla como
+`field.operate` **não** é lida como autorização implícita para todo ato de
+campo. Nunca por perfil.
 
-| Ação | `anyPermission` | `fallbackRoles` | Observação |
-|------|-----------------|-----------------|------------|
-| Ler brinco | `field.operate` | OPER, PROD, TECN | |
-| Pesagem | `field.operate` | OPER, PROD, TECN | Doc 7: PROD só "V X Ex", mas o catálogo lhe dá `field.operate` (D5) |
-| Nascimento | `field.operate` | OPER, PROD, TECN | |
-| Piquetes / mover animais | `field.operate` | OPER, PROD, TECN | VETE/TECN consultam por área (sanitária) |
-| Vacinação | `health.apply` | TECN, VETE | OPER só com delegação (D4) |
+`UiAction.access` = `anyPermission` **e** `roles` (Doc 7). Sessão antiga com
+`permissions` vazio: a verificação de permissão é substituída pela de papel
+(papéis também vêm da API); sem papel, nada aparece.
+
+| Ação | `anyPermission` | `roles` (Doc 7 §3) | Observação |
+|------|-----------------|--------------------|------------|
+| Ler brinco | `field.operate` | OPER, PROD, TECN | identificadores V/C |
+| Pesagem | `field.operate` | **OPER, TECN** | Doc 7 nega "C" de pesagem a PROD (D5): PROD só não vê |
+| Nascimento | `field.operate` | OPER, PROD, TECN | Doc 7 dá "C" a VETE, catálogo não dá `field.operate` → oculto |
+| Piquetes / mover animais | `field.operate` | OPER, PROD, TECN | idem para VETE (manejo "V C") |
+| Vacinação | `health.apply` | OPER, TECN, VETE | OPER é "A (delegação)": precisa também de `health.apply` (D4) |
 | Troca de brinco | `field.operate` | OPER, PROD, TECN | aprovação por 2º usuário é do servidor (Doc 7 §4.4) |
-| Embarques (expedir/ver) | `field.operate`, `shipment.transport`, `shipment.receive` | OPER, PROD, TECN, TRAN, FRIG | |
-| Animais (consulta) | qualquer permissão de domínio (ver D2) | todos exceto PUBL | |
-| Exportar inventário/dossiê | `reports.export` | PROD, VETE, CERT, AUDI | hoje sem gate na tela de Animais |
+| Embarques — expedir | `field.operate` | OPER, PROD, TECN | |
+| Embarques — ver/receber | `field.operate`, `shipment.receive`, `shipment.transport` | OPER, PROD, TECN, TRAN, FRIG | |
+| Animais (consulta) | — | todos exceto PUBL | D2: não existe permissão de leitura |
+| Exportar inventário/dossiê | `reports.export` | PROD, TECN, VETE, CERT, FRIG, AUDI, ADMO, ADMP | hoje sem gate na tela de Animais |
 | Central de acesso | `users.manage` | ADMO, ADMP | já existe: `canManageUsers` |
-| Alertas, Pendências, Ajustes | autenticado | — | sempre |
+| Alertas, Pendências, Ajustes | — | qualquer sessão | sempre |
+
+### 8.1 Inconsistências catálogo × Doc 7 (QUESTÃO EM ABERTO)
+
+Registradas para decisão posterior de segurança; até lá a UI segue a regra
+acima (mais restritiva) e a API continua sendo a decisão vinculante.
+
+| # | Papel | Catálogo da API | Doc 7 | Efeito na UI hoje |
+|---|-------|-----------------|-------|-------------------|
+| I1 | PROD | `field.operate` | Pesagens "V X Ex" (sem C) | Pesagem oculta para quem é só PROD |
+| I2 | VETE | sem `field.operate` | Manejo "V C", Reprodução "V C E X" | Mover animais e Nascimento ocultos |
+| I3 | OPER | sem `health.apply` | Vacinação "A (delegação)" | Vacinar oculto; o servidor hoje **aceita** VACCINATION de OPER (não há gate) |
+| I4 | ADMO/ADMP | só `users.*`, `devices.manage`, `platform.manage` | "V" em quase tudo | Só consulta (Animais) e Central de acesso |
+| I5 | todos | — | — | O servidor só aplica `users.manage` por permissão; R17 é por papel (`VETE`). A UI pode ser mais restritiva que a API |
 
 Implementação: `AuthSession.can()` e `canManageUsers` permanecem como estão.
-Acrescenta-se apenas um helper de leitura (`canAny`) — sem alterar RBAC.
+Acrescentam-se apenas helpers de leitura (`canAny`, `hasAnyRole`) — sem alterar
+RBAC.
 
 ## 9. Arquitetura (proposta)
 
@@ -353,19 +375,58 @@ verbo + objeto; (e) vocabulário técnico só em modo Gestão/Técnico ou atrás
 | Capturas de Flutter web em canvas | Playwright por coordenada/semantics (AGENTS §6) |
 | Escala de texto grande quebra grade | Altura do bloco em função do `textScaler`; teste a 1.6 |
 
-## 14. Decisões que pedem o humano
+## 14. Decisões
 
-Cada uma tem um padrão recomendado; sem resposta, a Entrega 2 segue o padrão.
+Revisadas pelo responsável em 2026-10-06. D2–D8 aprovadas explicitamente;
+D1, D9 e D10 seguem o padrão recomendado, sem objeção ("está quase tudo
+certo").
 
-| # | Questão | Recomendação |
-|---|---------|--------------|
-| D1 | Papéis AUDI/CERT → `management`; TRAN/FRIG → `field` | Aceitar |
-| D2 | Não há permissão de leitura de animais. Mostrar "Animais" para qualquer papel exceto PUBL (consulta), ou criar `animals.read` no catálogo da API? | UI: qualquer papel exceto PUBL. Criar permissão de leitura é mudança de RBAC → fora desta tarefa; registrar como backlog |
-| D3 | Módulos pedidos sem tela: Saúde/Tratamentos, Lotes, Reprodução, Indicadores, Alertas | Não criar telas com dado inventado. **Alertas** como tela nova montada só com projeções reais já no app (carência, conflitos, embarques aguardando). Os demais ficam fora até a API sustentar; "Lotes/Piquetes" aponta para Áreas |
-| D4 | OPER sem `health.apply` não vê "Vacinar" (Doc 7: só com delegação) — mas o servidor hoje aceita VACCINATION de OPER | Seguir o catálogo: ocultar. Se a operação real exige OPER vacinando, conceder `health.apply` ao OPER na API (decisão de RBAC, sua) |
-| D5 | PROD tem `field.operate` no catálogo, mas Doc 7 lhe nega criar pesagem | Seguir o catálogo; corrigir Doc 7 ou o catálogo é decisão de segurança |
-| D6 | Mover animais para Operador: hoje exige abrir mapa/lista de piquetes → folha. Aceitar uma tela nova "Escolher piquete" (lista, sem mapa) para Operador/Campo? | Sim, só lista; reutiliza `PADDOCK_CHANGE` e a folha de mover existente |
-| D7 | Embarque guiado precisa escolher destino por nome, mas só existe o UUID. A API de propriedades de destino não está exposta ao app | Não inventar; na Entrega 6 documentar o contrato necessário antes de alterar backend (AGENTS §3). Até lá, manter campo atual no Gestão e bloquear a versão guiada |
-| D8 | Remover dos perfis simples o botão "Simular brinco desconhecido" e o texto/contador fabricados da leitura | Sim, na Entrega 4 |
-| D9 | Perfil padrão para quem já usa o app (hoje todos veem a Home atual) | Aplicar o padrão por papel na primeira abertura; Gestão = Home atual com grade em vez de rolagem |
-| D10 | Idioma do rótulo do menu inferior no Operador: "Pendências" ou "Envios" | "Pendências" (termo do pedido) |
+| # | Questão | Decisão |
+|---|---------|---------|
+| D1 | Perfil padrão de AUDI/CERT e TRAN/FRIG | `management` e `field` (padrão, sem objeção) |
+| D2 | Não há permissão de leitura de animais | **Aprovada.** "Animais" para qualquer papel exceto PUBL. Criar `animals.read` é mudança de RBAC → backlog |
+| D3 | Módulos pedidos sem tela (Saúde/Tratamentos, Lotes, Reprodução, Indicadores, Alertas) | **Aprovada.** Nada inventado. **Alertas** só com dados reais já no app (carência, conflitos, embarques aguardando). Demais ficam fora até a API sustentar; "Lotes/Piquetes" aponta para Áreas |
+| D4 | OPER sem `health.apply` | **Aprovada.** Permissão manda, não o perfil: "Vacinar" oculto para OPER sem `health.apply` |
+| D5 | PROD tem `field.operate` no catálogo, mas o Doc 7 lhe nega criar pesagem | **Revisada pelo responsável.** Em conflito entre catálogo e RBAC/Doc 7, prevalece o mais restritivo; `field.operate` não é autorização implícita para criar pesagem. PROD não recebe a ação de pesagem até a inconsistência ser resolvida. Regra geral na §8; inconsistências na §8.1 |
+| D6 | Tela "Escolher piquete" (lista, sem mapa) para Operador/Campo | **Aprovada.** Reutiliza `PADDOCK_CHANGE` e a folha de mover existente |
+| D7 | Embarque guiado sem destino por nome | **Aprovada.** Documentar o contrato necessário na Entrega 6 antes de alterar backend; não inventar destino no app |
+| D8 | Simulação/dado fabricado na leitura | **Aprovada.** Remover da interface real qualquer simulação ou dado fabricado (Entrega 4) |
+| D9 | Perfil de quem já usa o app | Padrão por papel na primeira abertura (sem objeção) |
+| D10 | Rótulo do menu inferior no Operador | "Pendências" (sem objeção) |
+
+## 15. Estado das entregas
+
+| # | Entrega | Estado |
+|---|---------|--------|
+| 1 | Auditoria | Concluída (2026-10-06) |
+| 2 | Fundação | Concluída (2026-10-06) — abaixo |
+| 3–7 | Início, fluxos, consulta, operações, revisão | Pendentes |
+
+### 15.1 Entrega 2 — o que existe
+
+- `app/lib/core/ui_profile/ui_profile.dart` — enum `UiProfile` (rótulo,
+  descrição, ícone, valor gravado = nome do enum).
+- `ui_profile_resolver.dart` — `defaultUiProfileFor(roles)`, tabela da §6.1.
+- `ui_preferences.dart` — `UiPreferences` (ChangeNotifier): segue a
+  `AuthSession` sozinho (troca de conta recarrega a escolha do novo
+  `actorId`), grava em `traceagro.ui.profile.<actorId>`; `null` = Automático
+  (a chave é apagada). `init()` roda antes do boot da sessão em
+  `AppServices._start` para o shell já nascer no perfil certo.
+- `ui_profile_scope.dart` — `InheritedNotifier` acima do `MaterialApp`
+  (`main.dart`): a troca reconstrói rotas abertas e abas do `IndexedStack`.
+- `core/widgets/ui_profile_selector.dart` — "Modo da interface" em Ajustes,
+  logo abaixo de quem está usando: 5 cartões (Automático mostra "Agora: …"),
+  seleção por borda + ícone + "Em uso" (não só cor), `Semantics` com toque e
+  estado selecionado, 1 coluna no telefone e 2 a partir de 640 px.
+- Nenhuma tela além de Ajustes muda de comportamento ainda; o Início é a
+  Entrega 3.
+- Testes: `app/test/ui_profile_test.dart` (15) — mapa papel → perfil,
+  multi-papel, manual vence automático, persistência após reabrir, usuários
+  distintos no mesmo aparelho, Automático apaga a chave, sem sessão não grava,
+  valor gravado inválido, perfil não altera papéis/permissões, seletor
+  renderiza, troca sem reiniciar com semântica correta, 360 px com texto 1,6×.
+- Validação visual (web, API de laboratório, usuário ADMO): capturas em
+  `design-review/profiled-ui/` — `00-before-home-admo-412.png` (baseline do
+  Início atual: ADMO vê Pesagem sem `field.operate`; "Áreas" cortado na
+  rolagem), `01`/`02`/`03-settings-mode-*` (412, 1024, 360). Troca para
+  Operador refletiu na hora e sobreviveu a recarregar a página.

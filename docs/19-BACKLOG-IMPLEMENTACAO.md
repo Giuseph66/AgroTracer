@@ -218,8 +218,10 @@ governança e políticas definitivas da Fase 4.
 
 ## B14 — Perfis de interface (UX para baixa familiaridade digital)
 
-**Estado: em andamento.** Entrega 1 (auditoria e proposta) concluída em
-`docs/20-PERFIS-DE-INTERFACE.md`.
+**Estado: em andamento.** Entregas 1 (auditoria) e 2 (fundação: perfil por
+usuário, perfil automático por papel, seletor em Ajustes) concluídas — ver
+`docs/20-PERFIS-DE-INTERFACE.md` §15. Próxima: Entrega 3 (Início por perfil e
+filtro de ações por permissão).
 
 - **Pedido**: apresentar as mesmas funções de formas diferentes por perfil
   (Gestão, Campo, Operador, Técnico) sem alterar permissões, eventos ou regras.
@@ -242,3 +244,4 @@ governança e políticas definitivas da Fase 4.
 | Q2 | Fonte de tiles offline para áreas rurais (cache de zoom baixo vs MBTiles embarcado) | Cache automático da área da propriedade no 1º acesso online | B2 |
 | Q3 | Aprovação de troca de brinco: exigir 2º usuário sempre ou só para OPER | Só para OPER (Doc 7 §4.4) | B6 |
 | Q4 | Formato do dossiê verificável (PDF simples vs PDF + JSON anexo) | PDF + JSON embutido (verificação automática) | B9 |
+| Q5 | Catálogo de permissões da API × Doc 7 divergem (PROD com `field.operate` sem "C" de pesagem; VETE sem `field.operate` com "C" em manejo/reprodução; OPER sem `health.apply` mas servidor aceita VACCINATION) | Até decidir, a UI mostra só o que as duas fontes concedem (Doc 20 §8, D5) | Segurança/produto |

@@ -72,6 +72,21 @@ Espaço: 4/8/16/24/32/48 (`TaSpace.xs..xxl`). Raios: 10/16/24 (`TaRadius`).
 7. **Copy em pt-BR, voz de trabalho**: frases curtas, verbo no botão dizendo o que acontece ("Confirmar e liberar", "Registrar com brinco bruto"). Erros dizem o que houve e o que fazer, sem pedir desculpa. Nada de jargão de sistema na tela (nunca "payload", "sync job"); códigos técnicos (`IDENTIFIER_TAKEN`) aparecem pequenos e em mono, como referência.
 8. **Acessível sob sol**: manter contrastes altos dos tokens; não introduzir cinza-sobre-cinza.
 
+### 2.6 Perfis de interface (Doc 20)
+
+- O app tem perfis de apresentação — Gestão, Campo, Operador, Técnico — lidos
+  com `UiProfileScope.profileOf(context)` (`core/ui_profile/`). Eles decidem
+  **como** mostrar; permissões da sessão decidem **o que** mostrar. **Perfil
+  nunca concede ação**: toda ação passa pelo filtro de permissão real antes de
+  ser desenhada, e a API continua vinculante.
+- Em conflito entre o catálogo de permissões da API e a matriz do Doc 7, a tela
+  segue o mais restritivo (Doc 20 §8, decisão D5).
+- Preferência gravada por usuário (`traceagro.ui.profile.<actorId>`), nunca só
+  por aparelho; a troca em Ajustes vale na hora, sem logout nem reinício.
+- Não criar telas inteiras por perfil: variar por configuração e reaproveitar
+  o mesmo construtor de evento (Doc 20 §9).
+- Seleção de modo: `core/widgets/ui_profile_selector.dart` — reusar.
+
 ---
 
 ## 3. Convenções de engenharia (não negociáveis)

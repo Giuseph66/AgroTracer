@@ -26,7 +26,7 @@ Resultados de teste na data de referência:
 |-------|-----------|
 | `api npm test` (canonicalização) | 5/5 |
 | `api npm run test:e2e` (ingestão, autenticação, RBAC, administração e fluxo de campo contra Postgres real) | 17/17 |
-| `app flutter test` (canonical, outbox, sessão, widgets e cobertura de módulos) | 57/57 |
+| `app flutter test` (canonical, outbox, sessão, perfis de interface, widgets e cobertura de módulos) | 78/78 (2026-10-06) |
 | `flutter analyze` | limpo |
 | Playwright visível ponta a ponta | login obrigatório, logout, central de acesso desktop e mobile 412×915 verificados em `output/playwright/` |
 
@@ -117,6 +117,7 @@ Estrutura em `app/lib/`:
 | `core/sync/sync_service.dart` | Push em lote (500), backoff 5s→15min, ping de conectividade, adoção de sequência no boot, repescagem de provas de âncora a cada 8s, clock skew via header Date |
 | `core/auth/auth_session.dart` | Login obrigatório, validação `/auth/me`, expiração local do JWT, roles/permissões persistidas e logout |
 | `core/services.dart` | `AppServices` + InheritedWidget `Services`; sessão, identidade, sync e `apiBaseUrl` via `--dart-define=TRACEAGRO_API` |
+| `core/ui_profile/` | Perfis de interface (Doc 20): `UiProfile`, perfil automático por papel, `UiPreferences` por `actorId` (`traceagro.ui.profile.<actorId>`) e `UiProfileScope` acima do `MaterialApp`. Só organiza telas — **nunca concede permissão** |
 | `data/api_client.dart` | Leitura: animais, timeline, catálogo, áreas, embarques, genealogia, inventário CSV e dossiê; conversão wire→domínio |
 | `data/herd_repository.dart` | Rebanho/cache local persistido via SharedPreferences e atualizado pela API; `TimelineResult` distingue vazio de inacessível; **zero dados de exemplo** |
 | `domain/models.dart` | Animal, TraceEvent, SyncState (Doc 8), LifecycleStatus, EventKind com `wireName` |
@@ -128,11 +129,12 @@ Estrutura em `app/lib/`:
 | `features/areas/` | Piquetes, prévia de polígono, consulta sanitária por área e evento PADDOCK_CHANGE |
 | `features/shipment/` | Expedição, conferência de chegada, divergência e GTA manual |
 | `features/sync/` | Central: card de conexão, conflitos ("precisam de você"), fila de envio com prova |
-| `features/settings/` | Servidor, estado, última sync, clock skew, identidade do aparelho, sync manual |
+| `features/settings/` | Quem está usando, **Modo da interface** (`core/widgets/ui_profile_selector.dart`, troca imediata), central de acesso, conexão, aparelho, trocar de conta |
 | `features/admin/` | Central web responsiva para pessoas, perfis vigentes e suspensão de acesso; visível somente com `users.manage` |
 
 Testes: `test/canonical_test.dart` (lê `api/test/vectors.json` — paridade),
-`test/outbox_test.dart` (sequência, estados, R24, R27), `test/widget_test.dart`.
+`test/outbox_test.dart` (sequência, estados, R24, R27), `test/ui_profile_test.dart`
+(perfil por papel, preferência por usuário, seletor), `test/widget_test.dart`.
 
 ### 2.4 Paridade de hash (crítico)
 
