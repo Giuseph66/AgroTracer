@@ -4,6 +4,7 @@ import '../../core/services.dart';
 import '../../core/sync/sync_service.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/widgets/common.dart';
+import '../../core/widgets/ui_profile_selector.dart';
 import '../admin/admin_screen.dart';
 
 /// Ajustes: quem está operando, se a fila está subindo, e o essencial deste
@@ -63,6 +64,12 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
+
+              // Logo abaixo de quem está usando: num aparelho compartilhado,
+              // é a segunda coisa que a pessoa ajusta ao pegar o celular.
+              const SizedBox(height: TaSpace.lg),
+              const UiProfileSelector(),
+              const SizedBox(height: TaSpace.md),
 
               if (auth.canManageUsers) ...[
                 const SizedBox(height: TaSpace.md),
