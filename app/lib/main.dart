@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/services.dart';
 import 'core/theme/theme.dart';
 import 'core/theme/tokens.dart';
+import 'core/ui_profile/ui_profile_scope.dart';
 import 'features/auth/login_screen.dart';
 import 'features/animals/animals_screen.dart';
 import 'features/home/home_screen.dart';
@@ -43,11 +44,14 @@ class _SoberanoAppState extends State<SoberanoApp> {
   Widget build(BuildContext context) {
     return Services(
       services: services,
-      child: MaterialApp(
-        title: 'Soberano',
-        debugShowCheckedModeBanner: false,
-        theme: buildTaTheme(),
-        home: const AuthGate(),
+      child: UiProfileScope(
+        preferences: services.ui,
+        child: MaterialApp(
+          title: 'Soberano',
+          debugShowCheckedModeBanner: false,
+          theme: buildTaTheme(),
+          home: const AuthGate(),
+        ),
       ),
     );
   }

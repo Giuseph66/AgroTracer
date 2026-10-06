@@ -7,6 +7,7 @@ import '../data/herd_repository.dart';
 import 'auth/auth_session.dart';
 import 'sync/outbox.dart';
 import 'sync/sync_service.dart';
+import 'ui_profile/ui_preferences.dart';
 
 /// Endereço da API.
 ///
@@ -30,6 +31,7 @@ const apiBaseUrl = String.fromEnvironment(
 /// Serviços de longa duração do app, criados uma vez e injetados na árvore.
 class AppServices {
   AppServices() : outbox = Outbox(), auth = AuthSession(baseUrl: apiBaseUrl) {
+    ui = UiPreferences(auth);
     api = ApiClient(
       baseUrl: apiBaseUrl,
       tokenProvider: () => auth.token,
@@ -49,6 +51,7 @@ class AppServices {
 
   final Outbox outbox;
   final AuthSession auth;
+  late final UiPreferences ui;
   late ApiClient api;
   late final HerdRepository herd;
   late SyncService sync;
@@ -60,6 +63,7 @@ class AppServices {
   }
 
   Future<void> _start() async {
+    await ui.init();
     await outbox.restore();
     await auth.restore();
     await auth.bootstrap();
@@ -105,6 +109,7 @@ class AppServices {
     herd.dispose();
     api.close();
     outbox.dispose();
+    ui.dispose();
     auth.dispose();
   }
 }
