@@ -23,6 +23,7 @@
 | 17 | Decisões Pendentes da Diretoria | `17-DECISOES-DIRETORIA.md` | Diretoria |
 | 18 | Estado Atual da Implementação | `18-IMPLEMENTACAO-ATUAL.md` | Engenharia, agentes |
 | 19 | Backlog de Implementação | `19-BACKLOG-IMPLEMENTACAO.md` | Engenharia, agentes |
+| 20 | Perfis de Interface | `20-PERFIS-DE-INTERFACE.md` | Produto, design, engenharia mobile |
 
 Convenções de código e design system para quem implementa: **`AGENTS.md`** na
 raiz do repositório (leitura obrigatória antes dos Docs 18/19).

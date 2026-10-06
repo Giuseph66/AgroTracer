@@ -216,6 +216,24 @@ governança e políticas definitivas da Fase 4.
 
 ---
 
+## B14 — Perfis de interface (UX para baixa familiaridade digital)
+
+**Estado: em andamento.** Entrega 1 (auditoria e proposta) concluída em
+`docs/20-PERFIS-DE-INTERFACE.md`.
+
+- **Pedido**: apresentar as mesmas funções de formas diferentes por perfil
+  (Gestão, Campo, Operador, Técnico) sem alterar permissões, eventos ou regras.
+- **Escopo**: `UiProfile` com preferência por usuário, Início em grade por perfil,
+  filtro de ações por permissão, fluxos de campo simplificados, vocabulário de
+  pendências, revisão visual. Detalhe e entregas 2–7 no Doc 20 §11.
+- **Fora de escopo**: RBAC, API, eventos, Outbox, regras R1–R42.
+- **Aceite**: do Início, o Operador pesa e lê brinco em 1 toque e acha um animal
+  em ≤ 2 ações; nenhum perfil mostra ação sem permissão; a troca de modo é
+  imediata e sobrevive ao fechamento do app; usuários distintos no mesmo
+  aparelho mantêm preferências distintas.
+
+---
+
 ## Registro de decisões pendentes deste backlog
 
 | # | QUESTÃO EM ABERTO | Sugestão | Decide |
