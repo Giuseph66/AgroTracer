@@ -5,6 +5,7 @@ import '../theme/tokens.dart';
 import '../ui_profile/ui_profile.dart';
 import '../ui_profile/ui_profile_scope.dart';
 import 'common.dart';
+import 'equal_height_grid.dart';
 
 /// "Modo da interface": cartões grandes, um por modo, com Automático primeiro.
 /// A troca vale no toque — sem sair da conta nem reiniciar o app.
@@ -47,35 +48,10 @@ class UiProfileSelector extends StatelessWidget {
       children: [
         const SectionLabel('Modo da interface'),
         const SizedBox(height: TaSpace.sm),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            // Tablet/web: duas colunas. Telefone: uma, cartão inteiro tocável.
-            final columns = constraints.maxWidth >= 640 ? 2 : 1;
-            return Column(
-              children: [
-                for (var i = 0; i < cards.length; i += columns) ...[
-                  if (i > 0) const SizedBox(height: TaSpace.sm),
-                  // Cartões lado a lado com a mesma altura, mesmo quando um
-                  // deles tem a linha extra "Agora: ...".
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var c = 0; c < columns; c++) ...[
-                          if (c > 0) const SizedBox(width: TaSpace.sm),
-                          Expanded(
-                            child: i + c < cards.length
-                                ? cards[i + c]
-                                : const SizedBox.shrink(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
+        // Tablet/web: duas colunas. Telefone: uma, cartão inteiro tocável.
+        EqualHeightGrid(
+          columnsFor: (width) => width >= 640 ? 2 : 1,
+          children: cards,
         ),
         const SizedBox(height: TaSpace.sm),
         Row(
